@@ -186,7 +186,7 @@ html.rot.flip body{left:0;top:100%;transform:rotate(-90deg)}
   <div class="box">
     <div>
       <div id="roomBox"><div class="sub">ONLINE ROOM · share this with your friends</div><b id="rbCode"></b><input id="rbLink" readonly><button id="rbCopy">Copy link</button></div><h1>CUBEFRONT</h1>
-      <div class="sub">Endless block warfare · every block is one metre · build 44</div>
+      <div class="sub">Endless block warfare · every block is one metre · build 45</div>
       <div class="btns"><button id="playBtn">Join the world</button><button id="newBtn" class="alt">New world</button><button id="flipBtn" class="alt">Flip screen ⇄</button><button id="sndBtn" class="alt">🔊 Test sound</button></div><div id="sndMsg" class="sub" style="margin-top:-6px"></div>
       <div class="card"><h3>Your name</h3><input id="pname" placeholder="Your name" maxlength="14" style="margin-bottom:8px;width:100%"><div class="btns"><button id="worldBtn">Join the world</button><button id="hostBtn" class="alt">Host a private room</button></div><div id="joinRow" style="display:flex;gap:6px;margin-top:8px"><input id="joinCode" placeholder="Room code" maxlength="8" style="text-transform:uppercase"><button id="joinBtn" class="alt">Join</button></div><div id="netMsg" class="sub"></div><div class="sub">Press Play: you join the shared Arnhem world, or start it if nobody is in yet. Up to 4 players fight the same enemies.</div></div>
       <div class="card"><h3>World</h3><div id="worldRow"><button class="wbtn alt" data-w="wild">Wilderness</button><button class="wbtn alt" data-w="arnhem">Arnhem</button></div><div class="sub">Both are built from 1 m blocks. Press “New world” after switching.</div></div>
@@ -595,7 +595,7 @@ class RealMap {
       if (m < 999) { let a = banks.get(lab[i]); if (!a) banks.set(lab[i], a = []); a.push(m); }
     }
     const lvl = new Map();
-    for (const [Lb, a] of banks) { a.sort((p, o) => p - o); lvl.set(Lb, Math.max(33, Math.min(62, a[Math.floor(a.length * 0.1)] - 1))); }
+    for (const [Lb, a] of banks) { a.sort((p, o) => p - o); lvl.set(Lb, Math.max(33, Math.min(62, a[Math.floor(a.length * 0.1)]))); }
     for (let i = 0; i < N; i++) {
       if (!d[i] || lab[i] === 1) continue;
       if (lab[i] >= 2) { const w = lvl.get(lab[i]); if (w !== undefined) wl[i] = w | ((d[i] >= 2 ? 3 : 2) << 6); continue; }
@@ -604,7 +604,7 @@ class RealMap {
         const xx = x + dx, zz = z + dz; if (xx < 0 || zz < 0 || xx >= W || zz >= H) continue;
         if (!d[zz * W + xx]) m = Math.min(m, bankH(xx, zz));
       }
-      if (m < 999) wl[i] = Math.max(33, Math.min(62, m - 1)) | (2 << 6);
+      if (m < 999) wl[i] = Math.max(33, Math.min(62, m)) | (2 << 6);
     }
   }
   waterTop(x, z) { if (!this.inside(x, z) || !this.wl) return 32; const v = this.wl[(Math.floor(z) - Z0) * W + (Math.floor(x) - X0)]; return v ? (v & 63) : 32; }
@@ -765,6 +765,230 @@ nav.update = function (p, dt, flying) {
 CF.Nav = nav; CF.NavTools = { mapImage, placeName };
 })();
 
+// Cubefront landmarks: hand-built models of Arnhem's big buildings.
+// Recipe per building: real footprint from the map + proportions/colours from photos -> a few parametric
+// parts (walls, gable / lean-to / cone roofs, octagons, windows, pinnacles) drawn into a voxel canvas,
+// which is then turned into column spans that the world generator stamps over the generic building.
+(function () {
+'use strict';
+const CF = window.CF;
+
+function Canvas(x0, z0, nx, nz, ny) {
+  this.x0 = x0; this.z0 = z0; this.nx = nx; this.nz = nz; this.ny = ny;
+  this.v = new Uint8Array(nx * nz * ny);
+}
+Canvas.prototype.set = function (x, y, z, t) {
+  x = Math.round(x) - this.x0; z = Math.round(z) - this.z0; y = Math.round(y);
+  if (x < 0 || z < 0 || y < 0 || x >= this.nx || z >= this.nz || y >= this.ny) return;
+  this.v[(z * this.nx + x) * this.ny + y] = t;
+};
+Canvas.prototype.get = function (x, y, z) {
+  x = Math.round(x) - this.x0; z = Math.round(z) - this.z0;
+  if (x < 0 || z < 0 || y < 0 || x >= this.nx || z >= this.nz || y >= this.ny) return 0;
+  return this.v[(z * this.nx + x) * this.ny + y];
+};
+Canvas.prototype.box = function (x0, x1, z0, z1, y0, y1, t) {
+  for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) this.set(x, y, z, t);
+};
+// rectangle outline (walls), th cells thick
+Canvas.prototype.walls = function (x0, x1, z0, z1, y0, y1, t, th) {
+  th = th || 1;
+  for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) {
+    if (x - x0 >= th && x1 - x >= th && z - z0 >= th && z1 - z >= th) continue;
+    for (let y = y0; y <= y1; y++) this.set(x, y, z, t);
+  }
+};
+// gable roof, ridge running along x (axis 'x') or along z (axis 'z'); filled solid from the eave up
+Canvas.prototype.gable = function (axis, x0, x1, z0, z1, eave, ridge, t, endT, ends) {
+  const along = axis === 'x', a0 = along ? z0 : x0, a1 = along ? z1 : x1, m = (a0 + a1) / 2, hw = (a1 - a0) / 2 + 0.5;
+  for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) {
+    const d = Math.abs((along ? z : x) - m), top = Math.round(eave + (ridge - eave) * (1 - d / hw));
+    const isEnd = ends && (along ? (x === x0 || x === x1) : (z === z0 || z === z1));
+    for (let y = eave; y <= top; y++) this.set(x, y, z, isEnd && y < top ? endT : t);
+  }
+};
+// lean-to roof: low edge on side 'lo' ('z0','z1','x0','x1'), shell 2 thick
+Canvas.prototype.leanTo = function (x0, x1, z0, z1, yLo, yHi, lo, t) {
+  for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) {
+    const f = lo === 'z0' ? (z - z0) / Math.max(1, z1 - z0) : lo === 'z1' ? (z1 - z) / Math.max(1, z1 - z0) : lo === 'x0' ? (x - x0) / Math.max(1, x1 - x0) : (x1 - x) / Math.max(1, x1 - x0);
+    const y = Math.round(yLo + (yHi - yLo) * f);
+    this.set(x, y, z, t); this.set(x, y - 1, z, t);
+  }
+};
+// octagon "radius" (inradius) of an offset
+const oct = (dx, dz) => Math.max(Math.abs(dx), Math.abs(dz), (Math.abs(dx) + Math.abs(dz)) / 1.33);
+// octagonal prism (shell th thick, or solid), optional half (dx >= 0 only)
+Canvas.prototype.octo = function (cx, cz, r, y0, y1, t, th, half) {
+  const R = Math.ceil(r);
+  for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) {
+    const x = Math.round(cx + dx), z = Math.round(cz + dz), ox = x - cx, oz = z - cz;
+    if (half && ox < -0.01) continue;
+    const d = oct(ox, oz);
+    if (d > r + 0.01 || (th && d < r - th - 0.01)) continue;
+    for (let y = y0; y <= y1; y++) this.set(x, y, z, t);
+  }
+};
+// polygonal cone roof over an octagon (half = apse), solid from y0 up to the point at y1
+Canvas.prototype.cone = function (cx, cz, r, y0, y1, t, half, pinch) {
+  const R = Math.ceil(r);
+  for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) {
+    const x = Math.round(cx + dx), z = Math.round(cz + dz), ox = x - cx, oz = z - cz;
+    if (half && ox < -0.01) continue;
+    const d = oct(ox, oz) / (r + 0.5); if (d > 1) continue;
+    const k = pinch ? Math.pow(1 - d, pinch) : 1 - d;
+    const top = Math.round(y0 + (y1 - y0) * k);
+    for (let y = y0; y <= top; y++) this.set(x, y, z, t);
+  }
+};
+// turn the canvas into world column spans: clear above the ground, then the solid runs
+Canvas.prototype.toCols = function (gen, base, foot, out) {
+  for (let iz = 0; iz < this.nz; iz++) for (let ix = 0; ix < this.nx; ix++) {
+    const x = this.x0 + ix, z = this.z0 + iz, o = (iz * this.nx + ix) * this.ny;
+    let top = -1; for (let y = this.ny - 1; y >= 0; y--) if (this.v[o + y]) { top = y; break; }
+    const inFoot = foot && foot.has(x * 65536 + z);
+    if (top < 0 && !inFoot) continue;
+    const hi = Math.floor(gen.height(x, z)), spans = [[hi + 1, base + 1 + Math.max(top, 32), 0]];
+    for (let y = 0; y <= top; y++) {
+      const t = this.v[o + y]; if (!t) continue;
+      let e = y; while (e + 1 <= top && this.v[o + e + 1] === t) e++;
+      spans.push([base + 1 + y, base + 1 + e, t]); y = e;
+    }
+    out.set((x + 4000) * 8192 + (z + 4000), spans);
+  }
+};
+
+// the map's footprint of the building at (x, z): flood fill of its building cells
+function footprint(R, x, z, maxR) {
+  const K = CF.Real.K, W = CF.Real.W, X0 = CF.Real.X0, Z0 = CF.Real.Z0, set = new Set();
+  let seed = -1, best = 1e9;
+  for (let dz = -maxR; dz <= maxR; dz++) for (let dx = -maxR; dx <= maxR; dx++) if (R.kind(x + dx, z + dz) === K.BLD) { const d = dx * dx + dz * dz; if (d < best) { best = d; seed = (z + dz - Z0) * W + (x + dx - X0); } }
+  if (seed < 0) return set;
+  const q = [seed], seen = new Set([seed]);
+  while (q.length && seen.size < 20000) {
+    const i = q.pop(), cx = i % W, cz = (i - cx) / W; set.add((cx + X0) * 65536 + (cz + Z0));
+    for (const j of [i - 1, i + 1, i - W, i + W]) if (!seen.has(j) && (R.kg[j] & 31) === K.BLD) { seen.add(j); q.push(j); }
+  }
+  return set;
+}
+
+// ------------------------------------------------------------------ Grote of Eusebiuskerk
+// Three-aisled cruciform basilica in brick, built-in west tower in tuff (93 m): square shaft with two stages of
+// pointed niches, corner pinnacles, tall octagonal lantern (1964) with a pinched tent roof; open crossing spire;
+// choir with a five-sided ambulatory. Footprint from OpenStreetMap: x -12..71, z 1..52 (nave axis z = 26).
+function eusebius(gen) {
+  const B = CF.B, T = B.TUFF, S = B.SLATE, K = B.CBRICK, W = B.GWIN, M = B.METAL, G = B.TGLASS, A = 0;
+  const C = new Canvas(-16, -2, 94, 60, 100);
+  const zc = 26;
+  const pointedWin = (axis, plane, c0, c1, y0, y1) => { // window in a wall plane, pointed top
+    for (let y = y0; y <= y1; y++) for (let c = c0; c <= c1; c++) {
+      if (y === y1 && c1 - c0 >= 1 && (c === c0 || c === c1)) continue;
+      if (axis === 'z') C.set(c, y, plane, W); else C.set(plane, y, c, W);
+    }
+  };
+  // ---- side aisles and the west chapels beside the tower (lean-to roofs)
+  C.walls(-12, 28, 11, 18, 0, 14, K); C.walls(-12, 28, 33, 40, 0, 14, K);
+  C.leanTo(-12, 28, 11, 18, 15, 21, 'z0', S); C.leanTo(-12, 28, 33, 40, 15, 21, 'z1', S);
+  for (const bx of [-9, -3, 4, 10, 16, 22]) {                       // buttresses with pinnacles
+    for (const [bz, oz] of [[10, -1], [41, 1]]) { C.box(bx, bx, bz, bz, 0, 15, K); C.box(bx, bx, bz, bz, 16, 17, T); C.set(bx, 18, bz, T); C.set(bx, 19, bz - oz, T); }
+  }
+  for (const wx of [-7, -1, 6, 12, 18, 24]) { pointedWin('z', 11, wx, wx + 1, 3, 11); pointedWin('z', 40, wx, wx + 1, 3, 11); }
+  // ---- nave: arcades below, clerestory and steep slate roof
+  C.box(4, 28, 19, 19, 11, 24, K); C.box(4, 28, 33, 33, 11, 24, K);
+  for (const px of [4, 10, 16, 22, 28]) { C.box(px, px, 19, 19, 0, 10, T); C.box(px, px, 33, 33, 0, 10, T); }
+  for (const wx of [7, 13, 19, 25]) { pointedWin('z', 19, wx, wx, 21, 23); pointedWin('z', 33, wx, wx, 21, 23); }
+  C.gable('x', 4, 28, 19, 33, 24, 36, S);
+  // ---- transept with big tracery windows in both gables and corner turrets
+  for (const tx of [29, 47]) {
+    C.box(tx, tx, 3, 10, 0, 24, K); C.box(tx, tx, 41, 48, 0, 24, K);
+    C.box(tx, tx, 11, 18, 15, 24, K); C.box(tx, tx, 34, 40, 15, 24, K);
+    pointedWin('x', tx, 5, 7, 4, 18); pointedWin('x', tx, 43, 45, 4, 18);
+  }
+  C.box(29, 47, 3, 3, 0, 24, K); C.box(29, 47, 48, 48, 0, 24, K);
+  C.gable('z', 29, 47, 3, 48, 24, 36, S, K, true);
+  for (const gz of [3, 48]) {
+    for (let y = 3; y <= 27; y++) { const w = y > 23 ? 3 - (y - 23) : 3; for (let x = 38 - w; x <= 38 + w; x++) C.set(x, y, gz, W); }
+    for (let y = 3; y <= 23; y += 1) if (y % 5 === 0) for (let x = 35; x <= 41; x++) C.set(x, y, gz, T);   // tracery bars
+    for (const cx of [29, 47]) { C.box(cx - 1, cx, gz === 3 ? gz - 1 : gz, gz === 3 ? gz : gz + 1, 0, 33, K); C.box(cx - 1, cx, gz === 3 ? gz - 1 : gz, gz === 3 ? gz : gz + 1, 24, 35, T); C.set(cx, 36, gz, T); C.set(cx, 37, gz, T); C.set(cx, 38, gz, T); }
+    C.set(38, 37, gz, T); C.set(38, 38, gz, T);
+  }
+  // ---- open crossing spire with weathercock
+  C.octo(38, 26, 1.6, 34, 41, M, 1); C.cone(38, 26, 1.6, 42, 51, M); C.set(38, 52, 26, M); C.set(38, 53, 26, B.FLAGRED);
+  // ---- choir with five-sided ambulatory
+  C.box(48, 58, 13, 13, 0, 14, K); C.box(48, 58, 39, 39, 0, 14, K);
+  C.octo(58, zc, 13, 0, 14, K, 1, true);
+  C.leanTo(48, 58, 13, 19, 15, 21, 'z0', S); C.leanTo(48, 58, 33, 39, 15, 21, 'z1', S);
+  for (let dz = -13; dz <= 13; dz++) for (let dx = 0; dx <= 13; dx++) {        // ambulatory roof around the apse
+    const d = oct(dx, dz); if (d < 7 || d > 13.01) continue;
+    const y = Math.round(15 + 6 * (13 - d) / 6); C.set(58 + dx, y, zc + dz, S); C.set(58 + dx, y - 1, zc + dz, S);
+  }
+  C.box(48, 58, 19, 19, 15, 24, K); C.box(48, 58, 33, 33, 15, 24, K);
+  C.octo(58, zc, 7, 15, 24, K, 1, true);
+  C.gable('x', 48, 58, 19, 33, 24, 36, S);
+  C.cone(58, zc, 7, 24, 36, S, true);
+  for (const wx of [50, 53, 56]) { pointedWin('z', 13, wx, wx + 1, 3, 11); pointedWin('z', 39, wx, wx + 1, 3, 11); pointedWin('z', 19, wx, wx, 17, 22); pointedWin('z', 33, wx, wx, 17, 22); }
+  for (let a = -2; a <= 2; a++) {                                            // apse windows and buttresses
+    const ang = a * Math.PI / 4, ox = Math.cos(ang), oz = Math.sin(ang);
+    C.set(58 + ox * 13, 4, zc + oz * 13, W); for (let y = 3; y <= 11; y++) C.set(58 + ox * 13, y, zc + oz * 13, W);
+    for (let y = 16; y <= 22; y++) C.set(58 + ox * 7, y, zc + oz * 7, W);
+    const bx = 58 + Math.cos(ang + Math.PI / 8) * 14, bz = zc + Math.sin(ang + Math.PI / 8) * 14;
+    if (a < 2) { C.box(Math.round(bx), Math.round(bx), Math.round(bz), Math.round(bz), 0, 15, K); C.set(bx, 16, bz, T); C.set(bx, 17, bz, T); C.set(bx, 18, bz, T); }
+  }
+  // ---- south porch (natural stone front with doorway) and the chapel beside it, north sacristy
+  C.walls(31, 40, 49, 51, 0, 10, T); C.gable('z', 31, 40, 49, 51, 10, 15, S, T, true);
+  C.box(34, 37, 51, 51, 0, 5, A); C.box(34, 37, 49, 50, 0, 6, A); C.box(34, 37, 48, 48, 0, 6, A);
+  C.walls(15, 28, 41, 47, 0, 12, K); C.gable('x', 15, 28, 41, 47, 12, 17, S, K, true);
+  for (const wx of [18, 23]) pointedWin('z', 47, wx, wx + 1, 3, 10);
+  C.walls(22, 28, 6, 10, 0, 10, K); C.leanTo(22, 28, 6, 10, 11, 13, 'z0', S);
+  // ---- west tower: tuff shaft with clasping corner buttresses, two stages of pointed niches
+  const tx0 = -12, tx1 = 3, tz0 = 18, tz1 = 33, tcx = -4.5, tcz = 25.5;
+  C.walls(tx0, tx1, tz0, tz1, 0, 52, T, 2);
+  for (const [cx, cz] of [[tx0, tz0], [tx1, tz0], [tx0, tz1], [tx1, tz1]]) {
+    const sx = cx === tx0 ? -1 : 1, sz = cz === tz0 ? -1 : 1;
+    C.box(Math.min(cx, cx + sx * 2), Math.max(cx, cx + sx * 2), Math.min(cz, cz + sz * 2), Math.max(cz, cz + sz * 2), 0, 30, T);
+    C.box(Math.min(cx, cx + sx), Math.max(cx, cx + sx), Math.min(cz, cz + sz), Math.max(cz, cz + sz), 31, 46, T);
+  }
+  for (const by of [24, 38]) C.walls(tx0, tx1, tz0, tz1, by, by, B.CREAM);              // string courses (flush: overhangs would shade the wall below)
+  for (const [y0, y1] of [[26, 36], [40, 50]]) for (const off of [-3, 2]) {               // niches on all four faces
+    pointedWin('z', tz0, Math.round(tcx + off), Math.round(tcx + off) + 1, y0, y1); pointedWin('z', tz1, Math.round(tcx + off), Math.round(tcx + off) + 1, y0, y1);
+    pointedWin('x', tx0, Math.round(tcz + off), Math.round(tcz + off) + 1, y0, y1); pointedWin('x', tx1, Math.round(tcz + off), Math.round(tcz + off) + 1, y0, y1);
+  }
+  for (let z = tz0; z <= tz1; z++) for (let x = tx0; x <= tx1; x++) if (x === tx0 || x === tx1 || z === tz0 || z === tz1) { C.set(x, 53, z, T); if ((x + z) % 2 === 0) C.set(x, 54, z, T); }
+  for (const [cx, cz] of [[tx0, tz0], [tx1 - 1, tz0], [tx0, tz1 - 1], [tx1 - 1, tz1 - 1]]) { C.box(cx, cx + 1, cz, cz + 1, 53, 60, T); C.box(Math.round(cx + 0.5), Math.round(cx + 0.5), Math.round(cz + 0.5), Math.round(cz + 0.5), 61, 64, T); }
+  C.box(-7, -2, 18, 18, 0, 5, A); C.box(-7, -2, 19, 19, 0, 5, A);                           // north door into the tower
+  C.box(tx0, tx0 + 1, 23, 28, 0, 6, A);                                                   // west door
+  C.box(tx1 - 1, tx1, 21, 30, 0, 12, A);                                                  // tower arch into the nave
+  // ---- tall octagonal lantern with clock, glass balconies, pinched tent roof and cross
+  C.octo(tcx, tcz, 5.6, 53, 86, T, 1);
+  for (let y = 57; y <= 83; y++) for (let dz = -6; dz <= 6; dz++) for (let dx = -6; dx <= 6; dx++) {
+    const x = Math.round(tcx + dx), z = Math.round(tcz + dz), ox = x - tcx, oz = z - tcz, d = oct(ox, oz);
+    if (d > 5.61 || d < 4.6) continue;
+    const ang = Math.atan2(oz, ox), f = Math.abs(((ang / (Math.PI / 4)) % 1 + 1) % 1 - 0.5);   // 0 = face centre, 0.5 = corner
+    if (f < 0.22 && (y < 62 || y > 64)) C.set(x, y, z, W);
+  }
+  for (const [ox, oz] of [[0, -5.6], [0, 5.6], [-5.6, 0], [5.6, 0]]) for (let a = -1; a <= 1; a++) for (let y = 62; y <= 64; y++) C.set(tcx + ox + (oz ? a : 0), y, tcz + oz + (ox ? a : 0), B.WGLASS);
+  C.box(-6, -4, 34, 36, 46, 48, G); C.box(-6, -4, 34, 36, 45, 45, M);                      // glass balcony on the shaft
+  C.box(2, 4, 24, 26, 70, 72, G); C.box(2, 4, 24, 26, 69, 69, M);                          // and one on the lantern
+  C.walls(-10, 1, 20, 31, 53, 53, T);
+  C.cone(tcx, tcz, 5.6, 87, 93, T, false, 1.7);
+  C.box(-5, -5, 25, 25, 93, 97, M); C.box(-6, -4, 25, 25, 96, 96, M);
+  const R = gen.R, foot = footprint(R, 30, 26, 30);
+  let base = 999; for (const k of foot) { const x = Math.floor(k / 65536), z = k - x * 65536; base = Math.min(base, Math.floor(gen.height(x, z))); }
+  if (base === 999) base = Math.floor(gen.height(30, 26));
+  return { C, base, foot };
+}
+
+CF.Landmarks = {
+  build(gen) {
+    const out = new Map();
+    if (!gen.R) return out;
+    try {
+      const e = eusebius(gen); e.C.toCols(gen, e.base, e.foot, out);
+    } catch (err) { console.warn('landmark build failed', err); }
+    return out;
+  },
+};
+})();
+
 // Cubefront engine: noise, endless voxel world generation, chunk storage, meshing, raycasts.
 (function () {
 'use strict';
@@ -796,7 +1020,7 @@ CF.util = { clamp, lerp, smooth, hash2, hash3, mulberry32 };
 const B = {
   AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, SAND: 4, WATER: 5, LOG: 6, LEAVES: 7, SNOW: 8, GRAVEL: 9,
   PLANK: 10, BRICK: 11, BEDROCK: 12, SANDBAG: 13, METAL: 14, PINE: 15, ICE: 16, CONCRETE: 17,
-  CACTUS: 18, PAINT: 19, FLAGRED: 20, FLAGBLUE: 21, LADDER: 22, AMMO: 23, ROOF: 24, GLASS: 25, ASPHALT: 26, PAVER: 27, CREAM: 28, REDASPH: 29, SILVER: 30, TGLASS: 31, YGLASS: 32, BGLASS: 33, WGLASS: 34, UNLOADED: 255,
+  CACTUS: 18, PAINT: 19, FLAGRED: 20, FLAGBLUE: 21, LADDER: 22, AMMO: 23, ROOF: 24, GLASS: 25, ASPHALT: 26, PAVER: 27, CREAM: 28, REDASPH: 29, SILVER: 30, TGLASS: 31, YGLASS: 32, BGLASS: 33, WGLASS: 34, TUFF: 35, SLATE: 36, CBRICK: 37, GWIN: 38, UNLOADED: 255,
 };
 const SOLID = new Uint8Array(256), OPAQUE = new Uint8Array(256), HARD = new Float32Array(256), HITS = new Uint8Array(256);
 for (let i = 1; i < 40; i++) { SOLID[i] = 1; OPAQUE[i] = 1; HITS[i] = 1; }
@@ -816,10 +1040,12 @@ COLOR[B.PINE] = [0.14, 0.31, 0.17]; COLOR[B.ICE] = [0.66, 0.83, 0.96]; COLOR[B.C
 COLOR[B.CACTUS] = [0.24, 0.53, 0.2]; COLOR[B.PAINT] = [0.95, 0.95, 0.92]; COLOR[B.FLAGRED] = [0.82, 0.15, 0.12];
 COLOR[B.FLAGBLUE] = [0.16, 0.32, 0.86]; COLOR[B.LADDER] = [0.6, 0.45, 0.25]; COLOR[B.AMMO] = [0.32, 0.38, 0.2];
 COLOR[B.ROOF] = [0.42, 0.17, 0.13]; COLOR[B.GLASS] = [0.35, 0.5, 0.62]; COLOR[B.ASPHALT] = [0.22, 0.22, 0.24]; COLOR[B.PAVER] = [0.6, 0.4, 0.33]; COLOR[B.CREAM] = [0.78, 0.68, 0.5]; COLOR[B.REDASPH] = [0.6, 0.22, 0.17];
+COLOR[B.TUFF] = [0.6, 0.5, 0.36]; COLOR[B.SLATE] = [0.27, 0.29, 0.33]; COLOR[B.CBRICK] = [0.72, 0.44, 0.33]; COLOR[B.GWIN] = [0.2, 0.22, 0.26];
+HARD[B.TUFF] = 0.25; HARD[B.SLATE] = 0.12; HARD[B.CBRICK] = 0.22; HARD[B.GWIN] = 0.04;
 COLOR[B.SILVER] = [0.86, 0.88, 0.9]; COLOR[B.TGLASS] = [0.16, 0.42, 0.38]; COLOR[B.YGLASS] = [0.7, 0.78, 0.2]; COLOR[B.BGLASS] = [0.2, 0.45, 0.7]; COLOR[B.WGLASS] = [0.93, 0.94, 0.95];
 CF.B = B; CF.SOLID = SOLID; CF.OPAQUE = OPAQUE; CF.HARD = HARD; CF.HITS = HITS; CF.COLOR = COLOR;
 
-const CS = 16, CY = 128, SEA = 32;
+const CS = 16, CY = 160, SEA = 32;
 CF.CS = CS; CF.CY = CY; CF.SEA = SEA;
 
 // ---------------------------------------------------------------- noise
@@ -881,6 +1107,7 @@ class Gen {
     this.baseBoxes = this.makeBaseBoxes();
     this.landBoxes = this.arn ? this.arnBoxes() : [];
     this.bridgeCols = this.R ? this.makeBridges() : null;
+    this.landmarkCols = this.R && CF.Landmarks ? CF.Landmarks.build(this) : null;
     this._ci = { k: 0, H: 0 };
   }
   // ------------------------------------------------ Arnhem mode
@@ -1108,7 +1335,8 @@ class Gen {
     return cols;
   }
   arnBoxesReal() {
-    // the Eusebius church tower rises from the real church footprint
+    if (CF.Landmarks) return [];   // the Eusebiuskerk is now a full landmark model (landmarks.js)
+    // (old placeholder) the Eusebius church tower rises from the real church footprint
     const L = [], g = 36;
     const box = (x0, y0, z0, x1, y1, z1, t) => L.push([x0, g + y0, z0, x1, g + y1, z1, t]);
     box(-7, 1, 20, 5, 44, 34, B.STONE);
@@ -1713,6 +1941,10 @@ function generateChunk(gen, c, edits) {
     const a = gen.bridgeCols.get((X0 + x + 4000) * 8192 + (Z0 + z + 4000)); if (!a) continue;
     for (const [y0, y1, t] of a) { for (let y = Math.max(0, y0); y <= Math.min(CY - 1, y1); y++) data[(y << 8) | (z << 4) | x] = t; if (y1 > maxY) maxY = Math.min(CY - 1, y1); }
   }
+  if (gen.landmarkCols && gen.landmarkCols.size) for (let z = 0; z < CS; z++) for (let x = 0; x < CS; x++) {
+    const a = gen.landmarkCols.get((X0 + x + 4000) * 8192 + (Z0 + z + 4000)); if (!a) continue;
+    for (const [y0, y1, t] of a) { for (let y = Math.max(1, y0); y <= Math.min(CY - 1, y1); y++) data[(y << 8) | (z << 4) | x] = t; if (t && y1 > maxY) maxY = Math.min(CY - 1, y1); }
+  }
   const o = gen.outpost(Math.floor(X0 / REG), Math.floor(Z0 / REG));
   if (o) stamp(o.boxes);
   if (edits) {
@@ -2253,6 +2485,25 @@ void main() {
   } else if (t == 34u) {  // white band
     c = vec3(0.94, 0.95, 0.96) * (0.95 + 0.05 * n);
     if (ip.y == 0) c *= 0.85;
+  } else if (t == 35u) {  // tuff ashlar (church towers)
+    int row = ip.y >> 2; int off = (row & 1) * 4;
+    float blk = hb(bp, ((ip.x + off) >> 3) + row * 4 + 8100 + vFace * 40);
+    c = vec3(0.6, 0.5, 0.36) * (0.82 + 0.2 * blk) * (0.92 + 0.12 * n);
+    if ((ip.y & 3) == 3 || ((ip.x + off) & 7) == 7) c *= 0.8;
+    c *= 0.86 + 0.14 * clamp(float(bp.y & 7) / 7.0 + n2 * 0.3, 0.0, 1.0);
+  } else if (t == 36u) {  // slate roof
+    int row = ip.y >> 2; int off = (row & 1) * 2;
+    c = vec3(0.27, 0.29, 0.33) * (0.8 + 0.28 * hb(bp, ((ip.x + off) >> 2) + row * 8 + 8300 + vFace * 40));
+    if ((ip.y & 3) == 0) c *= 0.72;
+    c *= 0.94 + 0.1 * n;
+  } else if (t == 37u) {  // orange church brick
+    int row = ip.y >> 2; int off = (row & 1) * 4;
+    if ((ip.y & 3) == 3 || ((ip.x + off) & 7) == 7) c = vec3(0.78, 0.72, 0.64) * (0.88 + 0.12 * n);
+    else c = vec3(0.74, 0.45, 0.33) * (0.84 + 0.22 * hb(bp, ((ip.x + off) >> 3) + row * 4 + 8500 + vFace * 40)) * (0.93 + 0.1 * n);
+  } else if (t == 38u) {  // gothic tracery window: stone mullions + leaded dark glass
+    bool mull = ip.x < 2 || ip.x > 13 || ip.x == 7 || ip.x == 8 || (ip.y == 0);
+    if (mull) c = vec3(0.68, 0.6, 0.47) * (0.9 + 0.1 * n);
+    else { c = vec3(0.16, 0.2, 0.26) * (0.85 + 0.35 * float(ip.y) / 16.0); if (((ip.x + ip.y) & 3) == 0 || ((ip.x - ip.y) & 3) == 0) c *= 0.7; if (((ip.x * 3 + ip.y) & 15) == 0) c += vec3(0.25, 0.18, 0.08); }
   } else if (t == 23u) {  // ammo crate
     c = vec3(0.32, 0.38, 0.2) * (0.9 + 0.1 * n);
     bool edge = ip.x == 0 || ip.x == 15 || ip.y == 0 || ip.y == 15;
@@ -3779,13 +4030,13 @@ function makeZombie(x, y, z) {
   return b;
 }
 function zTarget(b) {
+  // zombies hear engines from far away: helicopters, jets and bikes (and their passengers) pull them in from ~150 m
   let best = null, bd = 85;
-  const p = G.p;
-  const pHigh = G.ride || (G.veh && G.veh.type !== 'bike' && G.veh.y - G.world.groundY(G.veh.x, G.veh.z) > 4);
-  if (p.alive && !pHigh) { const d = Math.hypot(p.x - b.x, p.z - b.z); if (d < bd) { bd = d; best = 'P'; } }
+  const p = G.p, loud = !!(G.veh || G.ride);
+  if (p.alive) { const d = Math.hypot(p.x - b.x, p.z - b.z) * (loud ? 0.55 : 1); if (d < bd) { bd = d; best = 'P'; } }
   for (const o of G.bots) {
-    if (!o.alive || o.team === 2 || o.hidden || o.sit) continue;
-    const d = Math.hypot(o.x - b.x, o.z - b.z) * (o.remote ? 1 : 1.3);
+    if (!o.alive || o.team === 2) continue;
+    const d = Math.hypot(o.x - b.x, o.z - b.z) * (o.remote ? (o.hidden || o.sit ? 0.55 : 1) : 1.3);
     if (d < bd) { bd = d; best = o; }
   }
   return best;
