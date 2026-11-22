@@ -188,7 +188,7 @@ html.rot.flip body{left:0;top:100%;transform:rotate(-90deg)}
       <div id="roomBox"><div class="sub">ONLINE ROOM · share this with your friends</div><b id="rbCode"></b><input id="rbLink" readonly><button id="rbCopy">Copy link</button></div><h1>CUBEFRONT</h1>
       <div class="sub">Endless block warfare · every block is one metre</div>
       <div class="btns"><button id="playBtn">Play</button><button id="newBtn" class="alt">New world</button><button id="flipBtn" class="alt">Flip screen ⇄</button><button id="sndBtn" class="alt">🔊 Test sound</button></div><div id="sndMsg" class="sub" style="margin-top:-6px"></div>
-      <div class="card"><h3>Play online (co-op, up to 4)</h3><input id="pname" placeholder="Your name" maxlength="14" style="margin-bottom:8px;width:100%"><div class="btns"><button id="worldBtn">Join the world</button><button id="hostBtn" class="alt">Host a private room</button></div><div class="sub">“Join the world” puts you in the one shared Arnhem world with everyone else playing right now.</div><div id="joinRow" style="display:flex;gap:6px;margin-top:8px"><input id="joinCode" placeholder="Room code" maxlength="8" style="text-transform:uppercase"><button id="joinBtn" class="alt">Join</button></div><div id="netMsg" class="sub"></div><div class="sub">Host sets the world, seed and enemy count below, then shares the code. Everyone fights the same enemies.</div></div>
+      <div class="card"><h3>Your name</h3><input id="pname" placeholder="Your name" maxlength="14" style="margin-bottom:8px;width:100%"><div class="btns"><button id="worldBtn">Join the world</button><button id="hostBtn" class="alt">Host a private room</button></div><div id="joinRow" style="display:flex;gap:6px;margin-top:8px"><input id="joinCode" placeholder="Room code" maxlength="8" style="text-transform:uppercase"><button id="joinBtn" class="alt">Join</button></div><div id="netMsg" class="sub"></div><div class="sub">Press Play: you join the shared Arnhem world, or start it if nobody is in yet. Up to 4 players fight the same enemies.</div></div>
       <div class="card"><h3>World</h3><div id="worldRow"><button class="wbtn alt" data-w="wild">Wilderness</button><button class="wbtn alt" data-w="arnhem">Arnhem</button></div><div class="sub">Both are built from 1 m blocks. Press “New world” after switching.</div></div>
       <div class="card"><h3>World seed</h3><div id="seedRow"><input id="seed" placeholder="Leave empty for a random world" maxlength="24"><button id="randSeed" class="alt">🎲</button></div></div>
       <div class="card touchCard"><h3>Touch controls</h3><div class="keys"><kbd>Left thumb</kbd><span>Drag anywhere on the left side to move</span><kbd>Right thumb</kbd><span>Drag on the right side to look around</span><kbd>Buttons</kbd><span>FIRE (next to the stick, or on the right) · AIM (tap to toggle) · JUMP · RELOAD · GRENADE · SWITCH GUN · USE near the helicopter or jet to get in or out. Push the stick further to run faster (afterburner in the jet).</span><kbd>Vehicles</kbd><span>Heli: stick moves, JUMP up, DOWN down. Jet: stick up/down = throttle, left/right = turn, drag to pitch. AIM fires rockets.</span></div></div>
@@ -5010,7 +5010,7 @@ $('playBtn').addEventListener('click', () => {
   goFull(); sfx.init(); sfx.setVolume(cfg.vol);
   requestLock();
   if (started) { setPaused(false); return; }
-  startGame(false);
+  if (window.CF_play) window.CF_play(); else startGame(false);
 });
 $('newBtn').addEventListener('click', () => {
   goFull(); sfx.init(); sfx.setVolume(cfg.vol); requestLock();
@@ -5424,6 +5424,9 @@ CF.debug = { G, gfx, I, cfg, setPaused, startGame };
     ctl.innerHTML = '<h4>' + c[0] + '</h4>' + c[1].map(r => '<div><kbd>' + r[0] + '</kbd><span>' + r[1] + '</span></div>').join('') + '<div class="hint">H: hide</div>';
   }, 300);
   let lobby = false, lobbySeed = 0;
+  for (const id of ['worldRow', 'seed']) { const c = $(id).closest('.card'); if (c) c.style.display = 'none'; }
+  for (const id of ['newBtn', 'hostBtn', 'worldBtn', 'joinRow']) $(id).style.display = 'none';
+  document.querySelectorAll('#hostBtn ~ .sub, #worldBtn ~ .sub').forEach(e => { e.style.display = 'none'; });
   $('pname').value = cfg.name || '';
   const applyName = () => { cfg.name = $('pname').value.trim().slice(0, 14); saveCfg(); CF.Net.setName(cfg.name || 'Player'); };
   $('pname').addEventListener('input', applyName); applyName();
@@ -5444,20 +5447,18 @@ CF.debug = { G, gfx, I, cfg, setPaused, startGame };
     } catch (e) { msg(String(e.message || e)); }
   });
   window.addEventListener('keydown', e => { if (e.code === 'KeyL' && CF.Net.mode !== 'off' && running && !paused) { try { navigator.clipboard.writeText(CF.Net.link()); } catch (x) { /* ignore */ } G.toast = { msg: 'ROOM LINK COPIED · ' + CF.Net.code, t: 3 }; } });
-  $('worldBtn').addEventListener('click', async () => {
-    goFull(); sfx.init(); sfx.setVolume(cfg.vol);
-    msg('Looking for the world…');
-    const WORLD = 'ARNHEM';
+  window.CF_play = async () => {
+    cfg.world = 'arnhem'; saveCfg();
+    msg('Joining the world…');
+    const WORLD = 'ARNHEM', join = async () => { const hc = await CF.Net.join(WORLD); startGame(true, { net: true, client: true, seed: hc.seed, world: hc.world }); };
     try {
-      let hc = null;
-      try { hc = await CF.Net.join(WORLD); } catch (e) { hc = null; }
-      if (hc) { requestLock(); startGame(true, { net: true, client: true, seed: hc.seed, world: hc.world }); return; }
-      try { await CF.Net.host(WORLD); } catch (e) {
-        hc = await CF.Net.join(WORLD); requestLock(); startGame(true, { net: true, client: true, seed: hc.seed, world: hc.world }); return;
-      }
-      requestLock(); startGame(true, { net: true, seed: 20241122, world: 'arnhem' });
-    } catch (e) { msg(String(e.message || e)); }
-  });
+      try { await join(); return; } catch (e) { /* nobody there yet */ }
+      try { await CF.Net.host(WORLD); startGame(true, { net: true, seed: 20241122, world: 'arnhem' }); return; } catch (e) { await join(); return; }
+    } catch (e) {
+      msg('Online is not available right now, starting a solo game.');
+      startGame(true, { seed: 20241122, world: 'arnhem' });
+    }
+  };
   $('joinBtn').addEventListener('click', async () => {
     goFull(); sfx.init(); sfx.setVolume(cfg.vol);
     msg('Looking for the host…');
