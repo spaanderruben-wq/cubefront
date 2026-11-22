@@ -38,7 +38,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0d1117;color:#fff;f
 #gren{font-size:12px;color:#c9d6a0;margin-top:2px;letter-spacing:.1em;height:16px}
 #ctl{position:absolute;left:12px;top:50%;transform:translateY(-50%);background:#0a0e0acc;border:1px solid #fff2;border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.9;min-width:190px;pointer-events:none}#ctl h4{margin:0 0 4px;font-size:11px;letter-spacing:.14em;opacity:.7;text-transform:uppercase}#ctl div{display:flex;gap:8px;align-items:baseline}#ctl kbd{min-width:52px;text-align:center;background:#fff1;border:1px solid #fff3;border-radius:4px;padding:0 5px;font:600 12px/1.6 inherit;color:#ffe6a0}#ctl .hint{opacity:.5;font-size:11px;margin-top:4px}body.touch #ctl{display:none!important}@media(max-height:760px){#ctl{font-size:11px;line-height:1.45;padding:6px 9px;top:56%}#ctl kbd{font-size:10px}}
 #roomBox{display:none;background:#10220f;border:1px solid #ffd24a88;border-radius:8px;padding:10px 12px;margin-bottom:10px}#roomBox b{font-size:30px;letter-spacing:.3em;color:#ffd24a}#roomBox input{width:100%;margin:6px 0;font-size:12px}
-#netInfo{position:absolute;right:12px;top:10px;font-size:12px;letter-spacing:.08em;background:#0009;padding:5px 9px;border-radius:5px;pointer-events:auto}#netInfo b{color:#ffd24a;font-size:15px;letter-spacing:.2em}#slots{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:6px}
+.ntag{position:absolute;transform:translate(-50%,-100%);font-size:13px;font-weight:700;letter-spacing:.06em;color:#fff;background:#000a;padding:1px 7px;border-radius:4px;white-space:nowrap;text-shadow:none;display:none}#netInfo{position:absolute;right:12px;top:10px;font-size:12px;letter-spacing:.08em;background:#0009;padding:5px 9px;border-radius:5px;pointer-events:auto}#netInfo b{color:#ffd24a;font-size:15px;letter-spacing:.2em}#slots{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:6px}
 .slot{position:relative;padding:3px 6px 4px;font-size:10px;letter-spacing:.06em;text-transform:uppercase;background:#0b100acc;border:1px solid #fff2;border-radius:5px;opacity:.6;text-align:center;width:84px}.slot canvas{display:block;width:84px;height:34px}.slot b{font-weight:500}.slot i{position:absolute;left:5px;top:2px}.slot.on{transform:translateY(-5px);box-shadow:0 0 12px #ffd24a55}
 .slot i{font-style:normal;opacity:.7}.slot.on{opacity:1;border-color:#ffd24a;color:#ffe6a0}
 #reload{position:absolute;left:50%;top:56%;transform:translateX(-50%);font-size:13px;letter-spacing:.2em;display:none}
@@ -153,7 +153,7 @@ html.rot.flip body{left:0;top:100%;transform:rotate(-90deg)}
   <div id="miniWrap"><canvas id="mini" width="112" height="112"></canvas></div>
   <div id="navHud"><svg id="navArr" viewBox="0 0 40 40"><path d="M20 3 L35 35 L20 27 L5 35 Z" fill="#ffd24a" stroke="#000" stroke-width="2.5" stroke-linejoin="round"/></svg><div id="navTxt"></div></div>
   <div id="top"><div id="comp"></div><div id="score">KILLS<b id="kills">0</b>FLAGS<b id="flags">0</b></div></div>
-  <div id="netInfo" class="hide"></div><div id="ctl"></div><div id="feed"></div>
+  <div id="netInfo" class="hide"></div><div id="ntags"></div><div id="ctl"></div><div id="feed"></div>
   <div id="toast"></div><div id="prompt"></div>
   <div id="cap"><span>CAPTURING</span><div id="capBar"><div id="capFill"></div></div></div>
   <div id="reload">RELOADING</div>
@@ -188,7 +188,7 @@ html.rot.flip body{left:0;top:100%;transform:rotate(-90deg)}
       <div id="roomBox"><div class="sub">ONLINE ROOM · share this with your friends</div><b id="rbCode"></b><input id="rbLink" readonly><button id="rbCopy">Copy link</button></div><h1>CUBEFRONT</h1>
       <div class="sub">Endless block warfare · every block is one metre</div>
       <div class="btns"><button id="playBtn">Play</button><button id="newBtn" class="alt">New world</button><button id="flipBtn" class="alt">Flip screen ⇄</button><button id="sndBtn" class="alt">🔊 Test sound</button></div><div id="sndMsg" class="sub" style="margin-top:-6px"></div>
-      <div class="card"><h3>Play online (co-op, up to 4)</h3><div class="btns"><button id="hostBtn">Host a room</button></div><div id="joinRow" style="display:flex;gap:6px;margin-top:8px"><input id="joinCode" placeholder="Room code" maxlength="8" style="text-transform:uppercase"><button id="joinBtn" class="alt">Join</button></div><div id="netMsg" class="sub"></div><div class="sub">Host sets the world, seed and enemy count below, then shares the code. Everyone fights the same enemies.</div></div>
+      <div class="card"><h3>Play online (co-op, up to 4)</h3><input id="pname" placeholder="Your name" maxlength="14" style="margin-bottom:8px;width:100%"><div class="btns"><button id="hostBtn">Host a room</button></div><div id="joinRow" style="display:flex;gap:6px;margin-top:8px"><input id="joinCode" placeholder="Room code" maxlength="8" style="text-transform:uppercase"><button id="joinBtn" class="alt">Join</button></div><div id="netMsg" class="sub"></div><div class="sub">Host sets the world, seed and enemy count below, then shares the code. Everyone fights the same enemies.</div></div>
       <div class="card"><h3>World</h3><div id="worldRow"><button class="wbtn alt" data-w="wild">Wilderness</button><button class="wbtn alt" data-w="arnhem">Arnhem</button></div><div class="sub">Both are built from 1 m blocks. Press “New world” after switching.</div></div>
       <div class="card"><h3>World seed</h3><div id="seedRow"><input id="seed" placeholder="Leave empty for a random world" maxlength="24"><button id="randSeed" class="alt">🎲</button></div></div>
       <div class="card touchCard"><h3>Touch controls</h3><div class="keys"><kbd>Left thumb</kbd><span>Drag anywhere on the left side to move</span><kbd>Right thumb</kbd><span>Drag on the right side to look around</span><kbd>Buttons</kbd><span>FIRE (next to the stick, or on the right) · AIM (tap to toggle) · JUMP · RELOAD · GRENADE · SWITCH GUN · USE near the helicopter or jet to get in or out. Push the stick further to run faster (afterburner in the jet).</span><kbd>Vehicles</kbd><span>Heli: stick moves, JUMP up, DOWN down. Jet: stick up/down = throttle, left/right = turn, drag to pitch. AIM fires rockets.</span></div></div>
@@ -2990,7 +2990,8 @@ const SKINS = [[0.87, 0.7, 0.57], [0.62, 0.44, 0.32], [0.45, 0.31, 0.22], [0.93,
 const GUN = [0.13, 0.13, 0.14];
 
 function soldier(g, s) {
-  const pal = PAL[s.team];
+  let pal = PAL[s.team];
+  if (s.tint) { const t = s.tint, k = (f) => [t[0] * f, t[1] * f, t[2] * f]; pal = { shirt: k(1), pants: k(0.72), vest: k(0.6), helmet: k(0.85), band: [Math.min(1, t[0] * 1.5), Math.min(1, t[1] * 1.5), Math.min(1, t[2] * 1.5)], boots: pal.boots }; }
   let q = Q.axis(0, 1, 0, s.yaw);
   if (!s.alive) q = Q.mul(q, Q.axis(1, 0, 0, s.fall || 0));
   const root = { p: s.pos, q };
@@ -4552,6 +4553,7 @@ G.curW = currentW;
 // Cubefront online co-op: host-authoritative, transport = claude "room" presence (no emit needed)
 (function () {
   const G = CF.G;
+  const PCOL = [[0.95, 0.5, 0.1], [0.2, 0.8, 0.35], [0.7, 0.3, 0.9], [0.95, 0.85, 0.15], [0.1, 0.8, 0.85]];
   const BW = ['ar', 'smg', 'dmr'];
   const N = {
     mode: 'off', code: '', id: Math.random().toString(36).slice(2, 8), status: '', room: null, hostCfg: null,
@@ -4713,7 +4715,7 @@ G.curW = currentW;
   function ensureRemote(s) {
     let b = remotes.get(s.id);
     if (b && G.bots.includes(b)) return b;
-    b = G.makeBot(0, s.x, s.y, s.z, {}); b.remote = true; b.peerId = s.id; b.skin = (s.id.charCodeAt(0) + s.id.charCodeAt(1)) % 5; b.nm = s.nm;
+    b = G.makeBot(0, s.x, s.y, s.z, {}); b.remote = true; b.peerId = s.id; b.skin = (s.id.charCodeAt(0) + s.id.charCodeAt(1)) % 5; b.nm = s.nm; { let h = 0; for (const ch of s.id) h = (h * 31 + ch.charCodeAt(0)) >>> 0; b.tint = PCOL[h % PCOL.length]; }
     remotes.set(s.id, b); return b;
   }
   function applyBlasts(s, from) {
@@ -4733,7 +4735,7 @@ G.curW = currentW;
       if (s.hs && N.mode === 'client') { /* host */ }
       seen.add(s.id);
       const b = ensureRemote(s); b.seenAt = now;
-      b.tx = s.x; b.ty = s.y; b.tz = s.z; b.tyaw = s.yw; b.alive = !!s.al; b.hp = s.hp; b.wpn = s.wp; b.pitch = s.pt;
+      b.tx = s.x; b.ty = s.y; b.tz = s.z; b.tyaw = s.yw; b.alive = !!s.al; b.hp = s.hp; b.wpn = s.wp; b.nm = s.nm || b.nm; b.pitch = s.pt;
       const wasAlive = b._wasAlive; b._wasAlive = b.alive;
       if (b.alive && !wasAlive) { b.x = s.x; b.y = s.y; b.z = s.z; b.deadT = 0; b.fall = 0; }
       const ps = shotSeen.get(s.id);
@@ -4794,11 +4796,11 @@ G.curW = currentW;
 const CF = window.CF, G = CF.G;
 const $ = id => document.getElementById(id);
 const canvas = $('c');
-const DEF = { seed: '', world: 'wild', rd: 32, enemies: 20, allies: 8, sens: 1, fov: 85, vol: 0.8, scale: 1 };
+const DEF = { seed: '', world: 'wild', rd: 16, enemies: 20, allies: 8, sens: 1, fov: 85, vol: 0.8, scale: 1 };
 const IS_TOUCH = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0 && window.matchMedia && matchMedia('(pointer:coarse)').matches);
 if (IS_TOUCH) { DEF.rd = 10; DEF.scale = 0.7; DEF.enemies = 14; DEF.allies = 5; DEF.sens = 1.3; document.body.classList.add('touch'); }
-let cfg = Object.assign({ ver: 3 }, DEF);
-try { const s = JSON.parse(localStorage.getItem('cubefront.v1') || 'null'); if (s) { cfg = Object.assign(cfg, s); if ((s.ver || 1) < 2) { cfg.rd = Math.max(cfg.rd, DEF.rd); cfg.fov = Math.max(cfg.fov, DEF.fov); cfg.ver = 2; } if ((s.ver || 1) < 3) { cfg.rd = 32; cfg.ver = 3; } } } catch (e) { /* ignore */ }
+let cfg = Object.assign({ ver: 4 }, DEF);
+try { const s = JSON.parse(localStorage.getItem('cubefront.v1') || 'null'); if (s) { cfg = Object.assign(cfg, s); if ((s.ver || 1) < 2) { cfg.rd = Math.max(cfg.rd, DEF.rd); cfg.fov = Math.max(cfg.fov, DEF.fov); cfg.ver = 2; } if ((s.ver || 1) < 4) { cfg.rd = Math.min(cfg.rd, 16); cfg.ver = 4; } } } catch (e) { /* ignore */ }
 function saveCfg() { try { localStorage.setItem('cubefront.v1', JSON.stringify(cfg)); } catch (e) { /* ignore */ } }
 
 
@@ -5332,6 +5334,21 @@ function setDest(px, py) {
 
 // ------------------------------------------------------------------ loop
 let last = performance.now(), fpsAcc = 0, fpsN = 0;
+let rdEff = cfg.rd, lastRd = cfg.rd, slowT = 0;
+const tagEls = [];
+function nameTags() {
+  const box = $('ntags'); let n = 0;
+  if (CF.Net.mode !== 'off' && !paused) for (const b of G.bots) {
+    if (!b.remote || !b.alive) continue;
+    const s = gfx.project([b.x, b.y + 2.15, b.z], innerWidth, innerHeight);
+    if (!s || s[2] > 160) continue;
+    let e = tagEls[n]; if (!e) { e = document.createElement('div'); e.className = 'ntag'; box.appendChild(e); tagEls[n] = e; }
+    e.style.display = 'block'; e.textContent = b.nm || 'Player'; e.style.left = s[0] + 'px'; e.style.top = s[1] + 'px';
+    if (b.tint) e.style.borderBottom = '3px solid rgb(' + b.tint.map(v => Math.round(v * 255)).join(',') + ')';
+    n++;
+  }
+  for (let i = n; i < tagEls.length; i++) tagEls[i].style.display = 'none';
+}
 function frame(now) {
   requestAnimationFrame(frame);
   let dt = (now - last) / 1000; last = now;
@@ -5349,11 +5366,14 @@ function frame(now) {
   }
   const p = G.p;
   const fx = G.veh ? 0 : -Math.sin(p.yaw), fz = G.veh ? 0 : -Math.cos(p.yaw);
-  G.world.update(p.x, p.z, cfg.rd, paused ? 1 : 3.5, fx, fz);
+  if (cfg.rd !== lastRd) { lastRd = cfg.rd; rdEff = cfg.rd; slowT = 0; }
+  if (!paused && dt > 0) { if (dt > 0.03) slowT += dt; else slowT = Math.max(0, slowT - dt * 0.5); if (slowT > 2.5 && rdEff > 8) { rdEff -= 2; slowT = 0; } }
+  G.cfg.rd = rdEff;
+  G.world.update(p.x, p.z, rdEff, paused ? 1 : 3.5, fx, fz);
   gfx.resize(cfg.scale);
   gfx.begin();
   G.camera(dt);
-  const R = cfg.rd * 16;
+  const R = rdEff * 16;
   gfx.env.fog = [R * 0.55, R * 0.97]; gfx.env.under = G.eyeInWater ? 1 : 0; gfx.time = G.t;
   gfx.drawSky();
   gfx.drawWorld(G.world, R + 8);
@@ -5362,7 +5382,7 @@ function frame(now) {
   gfx.drawWater();
   if (!paused) G.drawViewmodel();
   gfx.drawViewmodel(1.05);
-  if (!paused) hud(dt);
+  if (!paused) { hud(dt); nameTags(); }
 }
 requestAnimationFrame(frame);
 window.addEventListener('resize', () => { applyRot(); gfx.resize(cfg.scale); });
@@ -5403,6 +5423,9 @@ CF.debug = { G, gfx, I, cfg, setPaused, startGame };
     ctl.innerHTML = '<h4>' + c[0] + '</h4>' + c[1].map(r => '<div><kbd>' + r[0] + '</kbd><span>' + r[1] + '</span></div>').join('') + '<div class="hint">H: hide</div>';
   }, 300);
   let lobby = false, lobbySeed = 0;
+  $('pname').value = cfg.name || '';
+  const applyName = () => { cfg.name = $('pname').value.trim().slice(0, 14); saveCfg(); CF.Net.setName(cfg.name || 'Player'); };
+  $('pname').addEventListener('input', applyName); applyName();
   $('hostBtn').addEventListener('click', async () => {
     goFull(); sfx.init(); sfx.setVolume(cfg.vol);
     if (lobby) { requestLock(); startGame(true, { net: true, seed: lobbySeed, world: cfg.world }); lobby = false; $('hostBtn').textContent = 'Host a room'; return; }
