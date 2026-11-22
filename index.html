@@ -38,7 +38,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0d1117;color:#fff;f
 #gren{font-size:12px;color:#c9d6a0;margin-top:2px;letter-spacing:.1em;height:16px}
 #ctl{position:absolute;left:12px;top:50%;transform:translateY(-50%);background:#0a0e0acc;border:1px solid #fff2;border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.9;min-width:190px;pointer-events:none}#ctl h4{margin:0 0 4px;font-size:11px;letter-spacing:.14em;opacity:.7;text-transform:uppercase}#ctl div{display:flex;gap:8px;align-items:baseline}#ctl kbd{min-width:52px;text-align:center;background:#fff1;border:1px solid #fff3;border-radius:4px;padding:0 5px;font:600 12px/1.6 inherit;color:#ffe6a0}#ctl .hint{opacity:.5;font-size:11px;margin-top:4px}body.touch #ctl{display:none!important}@media(max-height:760px){#ctl{font-size:11px;line-height:1.45;padding:6px 9px;top:56%}#ctl kbd{font-size:10px}}
 #roomBox{display:none;background:#10220f;border:1px solid #ffd24a88;border-radius:8px;padding:10px 12px;margin-bottom:10px}#roomBox b{font-size:30px;letter-spacing:.3em;color:#ffd24a}#roomBox input{width:100%;margin:6px 0;font-size:12px}
-.ntag{position:absolute;transform:translate(-50%,-100%);font-size:13px;font-weight:700;letter-spacing:.06em;color:#fff;background:#000a;padding:1px 7px;border-radius:4px;white-space:nowrap;text-shadow:none;display:none}#netInfo{position:absolute;right:12px;top:10px;font-size:12px;letter-spacing:.08em;background:#0009;padding:5px 9px;border-radius:5px;pointer-events:auto}#netInfo b{color:#ffd24a;font-size:15px;letter-spacing:.2em}#slots{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:6px}
+.ntag{position:absolute;transform:translate(-50%,-100%);font-size:13px;font-weight:700;letter-spacing:.06em;color:#fff;background:#000a;padding:1px 7px;border-radius:4px;white-space:nowrap;text-shadow:none;display:none}#netInfo{position:absolute;right:12px;top:10px;font-size:12px;letter-spacing:.08em;background:#0009;padding:5px 9px;border-radius:5px;pointer-events:auto}#netInfo b{color:#ffd24a;font-size:15px;letter-spacing:.2em}#netInfo .nrow{display:flex;justify-content:space-between;gap:14px;font-size:12px;letter-spacing:.04em;margin-top:3px}#netInfo .nrow.me{color:#ffe6a0}#slots{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:6px}
 .slot{position:relative;padding:3px 6px 4px;font-size:10px;letter-spacing:.06em;text-transform:uppercase;background:#0b100acc;border:1px solid #fff2;border-radius:5px;opacity:.6;text-align:center;width:84px}.slot canvas{display:block;width:84px;height:34px}.slot b{font-weight:500}.slot i{position:absolute;left:5px;top:2px}.slot.on{transform:translateY(-5px);box-shadow:0 0 12px #ffd24a55}
 .slot i{font-style:normal;opacity:.7}.slot.on{opacity:1;border-color:#ffd24a;color:#ffe6a0}
 #reload{position:absolute;left:50%;top:56%;transform:translateX(-50%);font-size:13px;letter-spacing:.2em;display:none}
@@ -186,7 +186,7 @@ html.rot.flip body{left:0;top:100%;transform:rotate(-90deg)}
   <div class="box">
     <div>
       <div id="roomBox"><div class="sub">ONLINE ROOM · share this with your friends</div><b id="rbCode"></b><input id="rbLink" readonly><button id="rbCopy">Copy link</button></div><h1>CUBEFRONT</h1>
-      <div class="sub">Endless block warfare · every block is one metre · build 43</div>
+      <div class="sub">Endless block warfare · every block is one metre · build 44</div>
       <div class="btns"><button id="playBtn">Join the world</button><button id="newBtn" class="alt">New world</button><button id="flipBtn" class="alt">Flip screen ⇄</button><button id="sndBtn" class="alt">🔊 Test sound</button></div><div id="sndMsg" class="sub" style="margin-top:-6px"></div>
       <div class="card"><h3>Your name</h3><input id="pname" placeholder="Your name" maxlength="14" style="margin-bottom:8px;width:100%"><div class="btns"><button id="worldBtn">Join the world</button><button id="hostBtn" class="alt">Host a private room</button></div><div id="joinRow" style="display:flex;gap:6px;margin-top:8px"><input id="joinCode" placeholder="Room code" maxlength="8" style="text-transform:uppercase"><button id="joinBtn" class="alt">Join</button></div><div id="netMsg" class="sub"></div><div class="sub">Press Play: you join the shared Arnhem world, or start it if nobody is in yet. Up to 4 players fight the same enemies.</div></div>
       <div class="card"><h3>World</h3><div id="worldRow"><button class="wbtn alt" data-w="wild">Wilderness</button><button class="wbtn alt" data-w="arnhem">Arnhem</button></div><div class="sub">Both are built from 1 m blocks. Press “New world” after switching.</div></div>
@@ -318,6 +318,7 @@ class RealMap {
     this.hill = null;
     this.parse();
     this.riverEdges();
+    this.makePonds();
     this.makeSpawn();
     this.ms = Date.now() - t0;
   }
@@ -548,9 +549,68 @@ class RealMap {
       for (const [c, d] of dist) { const l = Math.round(HL * Math.max(0, 1 - d / Lr)); if (l > 0) this.lift.set(c, l); }
     }
   }
+  // Park ponds and streams lie up on the hill: give each its own water level, one block below its banks.
+  // The Rhine and its harbours keep river level (with the drop at the quay).
+  makePonds() {
+    const kg = this.kg, hg = this.hg, N = W * H, WAT = K.WATER, WIDE = 3;
+    const wl = this.wl = new Uint8Array(N);              // water top y | depth << 6 ; 0 = river level
+    const d = new Uint8Array(N); let nw = 0;
+    const brUnder = i => { const k = kg[i] & 31; return (k === K.BRROAD || k === K.BRWALK) && hg[i] === 1; };
+    // water under bridges counts as water, so a bridge does not cut the river (or a pond) in two
+    for (let i = 0; i < N; i++) if ((kg[i] & 31) === WAT || brUnder(i)) { d[i] = 255; nw++; }
+    if (!nw) return;
+    for (let z = 0; z < H; z++) for (let x = 0, i = z * W; x < W; x++, i++) {    // distance to the bank (cells)
+      if (!d[i]) continue; let v = d[i];
+      if (x > 0 && d[i - 1] + 1 < v) v = d[i - 1] + 1;
+      if (z > 0 && d[i - W] + 1 < v) v = d[i - W] + 1;
+      d[i] = v;
+    }
+    for (let z = H - 1; z >= 0; z--) for (let x = W - 1, i = z * W + W - 1; x >= 0; x--, i--) {
+      if (!d[i]) continue; let v = d[i];
+      if (x < W - 1 && d[i + 1] + 1 < v) v = d[i + 1] + 1;
+      if (z < H - 1 && d[i + W] + 1 < v) v = d[i + W] + 1;
+      d[i] = v;
+    }
+    const lab = new Uint16Array(N), q = new Int32Array(nw + 4);
+    let qt = 0, wideOnly = true;
+    const tp = (j, L) => { if (!lab[j] && d[j] && (!wideOnly || d[j] >= WIDE)) { lab[j] = L; q[qt++] = j; } };
+    const bfs = h0 => { for (let qh = h0; qh < qt; qh++) { const i = q[qh], L = lab[i], x = i % W; if (x > 0) tp(i - 1, L); if (x < W - 1) tp(i + 1, L); if (i >= W) tp(i - W, L); if (i < N - W) tp(i + W, L); } };
+    // the river: wide water reaching the edge of the map (narrow streams do not count as a connection)
+    for (let x = 0; x < W; x++) { tp(x, 1); tp((H - 1) * W + x, 1); }
+    for (let z = 1; z < H - 1; z++) { tp(z * W, 1); tp(z * W + W - 1, 1); }
+    bfs(0);
+    let L = 1;
+    for (let i = 0; i < N && L < 65000; i++) if (d[i] >= WIDE && !lab[i]) { L++; const h0 = qt; lab[i] = L; q[qt++] = i; bfs(h0); }
+    wideOnly = false;                                       // each body also takes its narrow rim
+    for (let layer = 0, s = 0; layer < 3; layer++) { const e = qt; for (let qh = s; qh < e; qh++) { const i = q[qh], Lb = lab[i], x = i % W; if (x > 0) tp(i - 1, Lb); if (x < W - 1) tp(i + 1, Lb); if (i >= W) tp(i - W, Lb); if (i < N - W) tp(i + W, Lb); } s = e; }
+    const bankH = (x, z) => Math.floor(36 + 13 * this.hillAt(X0 + x, Z0 + z));
+    const banks = new Map();
+    for (let i = 0; i < N; i++) {
+      if (d[i] !== 1 || lab[i] < 2) continue;
+      const x = i % W, z = (i - x) / W; let m = 999;
+      if (x > 0 && !d[i - 1]) m = Math.min(m, bankH(x - 1, z));
+      if (x < W - 1 && !d[i + 1]) m = Math.min(m, bankH(x + 1, z));
+      if (z > 0 && !d[i - W]) m = Math.min(m, bankH(x, z - 1));
+      if (z < H - 1 && !d[i + W]) m = Math.min(m, bankH(x, z + 1));
+      if (m < 999) { let a = banks.get(lab[i]); if (!a) banks.set(lab[i], a = []); a.push(m); }
+    }
+    const lvl = new Map();
+    for (const [Lb, a] of banks) { a.sort((p, o) => p - o); lvl.set(Lb, Math.max(33, Math.min(62, a[Math.floor(a.length * 0.1)] - 1))); }
+    for (let i = 0; i < N; i++) {
+      if (!d[i] || lab[i] === 1) continue;
+      if (lab[i] >= 2) { const w = lvl.get(lab[i]); if (w !== undefined) wl[i] = w | ((d[i] >= 2 ? 3 : 2) << 6); continue; }
+      const x = i % W, z = (i - x) / W; let m = 999;              // a stream: follow the ground right next to it
+      for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) {
+        const xx = x + dx, zz = z + dz; if (xx < 0 || zz < 0 || xx >= W || zz >= H) continue;
+        if (!d[zz * W + xx]) m = Math.min(m, bankH(xx, zz));
+      }
+      if (m < 999) wl[i] = Math.max(33, Math.min(62, m - 1)) | (2 << 6);
+    }
+  }
+  waterTop(x, z) { if (!this.inside(x, z) || !this.wl) return 32; const v = this.wl[(Math.floor(z) - Z0) * W + (Math.floor(x) - X0)]; return v ? (v & 63) : 32; }
   height(x, z) {
-    const v = this.kg[(z - Z0) * W + (x - X0)] & 31;
-    if (v === K.WATER) return 29;
+    const ci = (Math.floor(z) - Z0) * W + (Math.floor(x) - X0), v = this.kg[ci] & 31;
+    if (v === K.WATER) { const p = this.wl ? this.wl[ci] : 0; return p ? (p & 63) - (p >> 6) : 29; }
     let h = 36;
     if (v === K.BRROAD || v === K.BRWALK) h += this.lift.get((z - Z0) * W + (x - X0)) || 0;
     h += 13 * this.hillAt(x, z);
@@ -1461,9 +1521,10 @@ function generateChunk(gen, c, edits) {
     const hi = colH[gi], bio = colB[gi];
     const slope = Math.max(Math.abs(colH[gi + 1] - colH[gi - 1]), Math.abs(colH[gi + GW] - colH[gi - GW])) * 0.5;
     const wx = X0 + lx, wz = Z0 + lz;
+    const wTop = gen.R && gen.R.inside(wx, wz) ? gen.R.waterTop(wx, wz) : SEA;
     let topT, subT, sub = 3;
     const r = hash2(wx, wz, gen.seed + 31);
-    if (hi < SEA) { topT = r < 0.35 ? B.GRAVEL : (r < 0.45 ? B.DIRT : B.SAND); subT = B.SAND; }
+    if (hi < SEA || hi < wTop) { topT = r < 0.35 ? B.GRAVEL : (r < 0.45 ? B.DIRT : B.SAND); subT = B.SAND; }
     else if (bio === 2) { topT = B.SAND; subT = B.SAND; sub = 5; if (slope > 3.2) topT = subT = B.STONE; }
     else if (bio === 3) { topT = B.SNOW; subT = B.DIRT; if (slope > 2.8) { topT = r < 0.5 ? B.STONE : B.SNOW; subT = B.STONE; } }
     else if (hi <= SEA + 1) { topT = B.SAND; subT = B.SAND; }
@@ -1512,7 +1573,7 @@ function generateChunk(gen, c, edits) {
     if (pond) { data[(hi << 8) | col] = B.WATER; data[((hi - 1) << 8) | col] = B.WATER; data[((hi - 2) << 8) | col] = B.SAND; }
     if (hi > maxY) maxY = hi;
     if (gen.R) {
-      if (ci.br && ci.under) { for (let y = SEA - 3; y < hi - 2; y++) data[(y << 8) | col] = y <= SEA ? B.WATER : 0; }
+      if (ci.br && ci.under) { for (let y = wTop - 3; y < hi - 2; y++) data[(y << 8) | col] = y <= wTop ? B.WATER : 0; }
       if (cityK === 16) { data[((hi + 1) << 8) | col] = B.METAL; if (hi + 1 > maxY) maxY = hi + 1; }
       if (cityK === 2 && !ci.br && hash2(wx, wz, gen.seed + 9) < 0.011) { for (let k = 0; k < 5; k++) data[((hi + 1 + k) << 8) | col] = B.METAL; data[((hi + 6) << 8) | col] = B.PAINT; if (hi + 6 > maxY) maxY = hi + 6; }
     }
@@ -1550,9 +1611,9 @@ function generateChunk(gen, c, edits) {
       for (let y = hi + 1; y < top && y < CY; y++) { const t = cityBlock(ci, y - hi - 1); if (t) data[(y << 8) | col] = t; else if (y > hi + ci.H) break; }
       if (top > maxY) maxY = Math.min(CY - 1, top);
     }
-    if (hi < SEA) {
-      for (let y = hi + 1; y <= SEA; y++) data[(y << 8) | col] = (y === SEA && bio === 3) ? B.ICE : B.WATER;
-      if (SEA > maxY) maxY = SEA;
+    if (hi < wTop) {
+      for (let y = hi + 1; y <= wTop; y++) data[(y << 8) | col] = (y === wTop && bio === 3) ? B.ICE : B.WATER;
+      if (wTop > maxY) maxY = wTop;
     }
   }
   // trees
@@ -2874,6 +2935,8 @@ class Sfx {
   step(water) { if (!this.ctx) return; const t = this.ctx.currentTime; this.noiseBurst(t, water ? 0.18 : 0.07, water ? 1200 : 700, water ? 400 : 250, 1, water ? 0.12 : 0.1, 'lowpass', null); }
   land() { if (!this.ctx) return; const t = this.ctx.currentTime; this.noiseBurst(t, 0.12, 500, 120, 1, 0.3, 'lowpass', null, this.brown); }
   hurt() { if (!this.ctx) return; const t = this.ctx.currentTime; this.tone(t, 0.18, 140, 60, 0.35, 'sine'); this.noiseBurst(t, 0.1, 900, 300, 1, 0.2, 'lowpass', null, this.brown); }
+  groan(pos) { if (!this.ctx) return; const t = this.ctx.currentTime, fq = 70 + Math.random() * 45; this.tone(t, 0.9, fq * 1.45, fq, 0.2, 'sawtooth', pos); this.tone(t + 0.04, 0.75, fq * 2.2, fq * 1.5, 0.08, 'triangle', pos); this.noiseBurst(t, 0.6, 600, 220, 1, 0.08, 'lowpass', pos, this.brown); }
+  bite(pos) { if (!this.ctx) return; const t = this.ctx.currentTime; this.noiseBurst(t, 0.09, 1400, 500, 1.5, 0.3, 'bandpass', pos); this.tone(t, 0.12, 220, 90, 0.18, 'square', pos); }
   whiz(pos) { if (!this.ctx) return; const t = this.ctx.currentTime; this.noiseBurst(t, 0.09, 5000, 1800, 4, 0.12, 'bandpass', pos); }
   impact(pos) { if (!this.ctx) return; const t = this.ctx.currentTime; this.noiseBurst(t, 0.05, 3000, 1500, 2, 0.1, 'bandpass', pos); }
   pickup() { if (!this.ctx) return; const t = this.ctx.currentTime; this.tone(t, 0.08, 700, 700, 0.15, 'triangle'); this.tone(t + 0.08, 0.12, 1050, 1050, 0.15, 'triangle'); }
@@ -2987,6 +3050,8 @@ const PAL = [
   { shirt: [0.27, 0.33, 0.42], pants: [0.22, 0.27, 0.35], vest: [0.2, 0.24, 0.3], helmet: [0.24, 0.3, 0.38], band: [0.18, 0.4, 0.95], boots: [0.12, 0.12, 0.13] },
   { shirt: [0.6, 0.52, 0.36], pants: [0.5, 0.43, 0.3], vest: [0.42, 0.37, 0.26], helmet: [0.48, 0.42, 0.29], band: [0.85, 0.14, 0.1], boots: [0.16, 0.13, 0.1] },
 ];
+const ZSKIN = [0.43, 0.56, 0.36];
+PAL[2] = { shirt: [0.34, 0.37, 0.31], pants: [0.24, 0.22, 0.2], vest: [0.34, 0.37, 0.31], helmet: [0.2, 0.24, 0.16], band: [0.5, 0.06, 0.05], boots: [0.15, 0.13, 0.11] };
 const SKINS = [[0.87, 0.7, 0.57], [0.62, 0.44, 0.32], [0.45, 0.31, 0.22], [0.93, 0.79, 0.67], [0.75, 0.56, 0.42]];
 const GUN = [0.13, 0.13, 0.14];
 
@@ -2996,26 +3061,40 @@ function soldier(g, s) {
   let q = s.qo || Q.axis(0, 1, 0, isFinite(s.yaw) ? s.yaw : 0);
   if (!s.alive) q = Q.mul(q, Q.axis(1, 0, 0, s.fall || 0));
   const root = { p: s.pos, q };
+  const zb = s.team === 2;                      // zombie
   const spd = Math.min(1, (s.spd || 0) / 3.5);
-  const sw = Math.sin(s.anim || 0) * 0.75 * spd;
+  const sw = Math.sin(s.anim || 0) * (zb ? 0.95 : 0.75) * spd;
   for (const side of [-1, 1]) {
     const hip = child(root, [0.12 * side, 0.72, 0], Q.axis(1, 0, 0, s.sit ? 1.45 : sw * side));
     boxAt(g, hip, [0, -0.29, 0], [0.115, 0.29, 0.125], pal.pants, 0, 1, s.seed);
     boxAt(g, hip, [0, -0.64, -0.035], [0.125, 0.085, 0.16], pal.boots);
   }
   boxAt(g, root, [0, 1.05, 0], [0.24, 0.33, 0.135], pal.shirt, 0, 1, s.seed);
-  boxAt(g, root, [0, 1.1, 0], [0.255, 0.22, 0.155], pal.vest);
+  if (zb) { boxAt(g, root, [0.09, 1.0, -0.137], [0.07, 0.09, 0.004], [0.42, 0.05, 0.04]); boxAt(g, root, [-0.12, 1.22, -0.137], [0.05, 0.04, 0.004], [0.35, 0.04, 0.03]); }
+  else boxAt(g, root, [0, 1.1, 0], [0.255, 0.22, 0.155], pal.vest);
   boxAt(g, root, [0, 0.78, 0], [0.25, 0.04, 0.145], [0.15, 0.14, 0.12]);
-  const neck = child(root, [0, 1.38, 0], Q.axis(1, 0, 0, (s.pitch || 0) * 0.5));
-  const skin = SKINS[s.skin || 0];
+  const neck = child(root, [0, 1.38, 0], Q.axis(1, 0, 0, zb ? 0.25 : (s.pitch || 0) * 0.5));
+  const skin = zb ? ZSKIN : SKINS[s.skin || 0];
   boxAt(g, neck, [0, 0.2, 0], [0.2, 0.2, 0.2], skin);
-  boxAt(g, neck, [0, 0.355, 0.01], [0.228, 0.095, 0.228], pal.helmet, 0, 1, (s.seed || 0) + 3);
-  boxAt(g, neck, [0, 0.27, -0.226], [0.228, 0.022, 0.025], pal.helmet);
-  boxAt(g, neck, [0.08, 0.19, -0.201], [0.035, 0.028, 0.01], [0.08, 0.08, 0.09]);
-  boxAt(g, neck, [-0.08, 0.19, -0.201], [0.035, 0.028, 0.01], [0.08, 0.08, 0.09]);
+  if (zb) boxAt(g, neck, [0, 0.39, 0.03], [0.205, 0.035, 0.19], pal.helmet);
+  else {
+    boxAt(g, neck, [0, 0.355, 0.01], [0.228, 0.095, 0.228], pal.helmet, 0, 1, (s.seed || 0) + 3);
+    boxAt(g, neck, [0, 0.27, -0.226], [0.228, 0.022, 0.025], pal.helmet);
+  }
+  const eye = zb ? [1, 0.15, 0.08] : [0.08, 0.08, 0.09], eem = zb ? 1 : 0;
+  boxAt(g, neck, [0.08, 0.19, -0.201], [0.035, 0.028, 0.01], eye, eem);
+  boxAt(g, neck, [-0.08, 0.19, -0.201], [0.035, 0.028, 0.01], eye, eem);
   boxAt(g, neck, [0, 0.07, -0.201], [0.06, 0.015, 0.01], [skin[0] * 0.7, skin[1] * 0.6, skin[2] * 0.6]);
   // arms + rifle in the aim frame
-  const aim = child(root, [0, 1.32, 0], Q.axis(1, 0, 0, s.alive ? (s.pitch || 0) : 0));
+  const aim = child(root, [0, 1.32, 0], Q.axis(1, 0, 0, zb ? 0.08 + Math.sin((s.anim || 0) * 0.5) * 0.06 : s.alive ? (s.pitch || 0) : 0));
+  if (zb) {                                     // arms reaching forward, no gun
+    for (const sd of [-1, 1]) {
+      const a = child(aim, [0.3 * sd, 0, 0], Q.mul(Q.axis(0, 1, 0, -0.06 * sd), RX90));
+      boxAt(g, a, [0, -0.3, 0], [0.09, 0.32, 0.095], pal.shirt, 0, 1, s.seed);
+      boxAt(g, a, [0, -0.66, 0], [0.075, 0.06, 0.08], skin);
+    }
+    return;
+  }
   const ra = child(aim, [0.33, 0, 0], Q.mul(Q.axis(0, 1, 0, 0.12), RX90));
   boxAt(g, ra, [0, -0.27, 0], [0.095, 0.3, 0.1], pal.shirt, 0, 1, s.seed);
   const la = child(aim, [-0.33, 0, 0], Q.mul(Q.axis(0, 1, 0, -0.5), RX90));
@@ -3609,7 +3688,11 @@ function updatePlayer(dt, I) {
   } else {
     p.vy -= 27 * dt;
     if (p.chute) p.vy = Math.max(p.vy, -5.5);
+    if (p.onGround) { p.airJ = 1; p.airT = 0; } else p.airT = (p.airT || 0) + dt;
     if (K.Space && p.onGround) { p.vy = 8.6; p.onGround = false; }
+    else if (I.pressed.Space && !p.onGround && p.airJ > 0 && p.airT > 0.1 && !p.chute) {   // double jump (get out of holes)
+      p.vy = 8.4; p.airJ = 0; spark([p.x, p.y + 0.1, p.z], [0.85, 0.85, 0.8], 6, 2.5, 0.35, 0.07, 6); G.sfx && G.sfx.step(false);
+    }
   }
   if (p.vy < -48) p.vy = -48;
   const preVy = p.vy;
@@ -3689,6 +3772,68 @@ function makeBot(team, x, y, z, o) {
   return b;
 }
 G.makeBot = makeBot;
+// ------------------------------------------------------------------ zombies (team 2): run at you, hop and scramble up walls, bite
+function makeZombie(x, y, z) {
+  const b = makeBot(2, x, y, z, { home: [x, z], homeR: 30 });
+  b.hp = 60; b.zspd = 4.6 + rnd() * 1.4; b.climbT = 0; b.atk = 0; b.groan = 2 + rnd() * 6;
+  return b;
+}
+function zTarget(b) {
+  let best = null, bd = 85;
+  const p = G.p;
+  const pHigh = G.ride || (G.veh && G.veh.type !== 'bike' && G.veh.y - G.world.groundY(G.veh.x, G.veh.z) > 4);
+  if (p.alive && !pHigh) { const d = Math.hypot(p.x - b.x, p.z - b.z); if (d < bd) { bd = d; best = 'P'; } }
+  for (const o of G.bots) {
+    if (!o.alive || o.team === 2 || o.hidden || o.sit) continue;
+    const d = Math.hypot(o.x - b.x, o.z - b.z) * (o.remote ? 1 : 1.3);
+    if (d < bd) { bd = d; best = o; }
+  }
+  return best;
+}
+function updateZombie(b, dt) {
+  if (!b.alive) { updateBot(b, dt); return; }
+  if (!chunkReady(b.x, b.z)) return;
+  const w = G.world, p = G.p;
+  b.think -= dt; b.atk = Math.max(0, b.atk - dt); b.flash = Math.max(0, b.flash - dt);
+  if (b.think <= 0) { b.think = 0.3 + rnd() * 0.3; b.target = zTarget(b); }
+  let tx, ty, tz;
+  if (b.target === 'P' && p.alive) { tx = p.x; ty = p.y; tz = p.z; }
+  else if (b.target && b.target !== 'P' && b.target.alive) { tx = b.target.x; ty = b.target.y; tz = b.target.z; }
+  else {
+    b.target = null;
+    if (G.t > b.goalT) { b.goalT = G.t + 3 + rnd() * 5; const a = rnd() * 6.28; b.goalX = b.home[0] + Math.cos(a) * 14; b.goalZ = b.home[1] + Math.sin(a) * 14; }
+    tx = b.goalX; ty = b.y; tz = b.goalZ;
+  }
+  const dx = tx - b.x, dz = tz - b.z, d = Math.hypot(dx, dz) || 1;
+  const chasing = !!b.target, spd = chasing ? b.zspd : 1.2;
+  let mx = dx / d, mz = dz / d;
+  if (d < (chasing ? 0.9 : 1.5)) { mx = 0; mz = 0; }
+  if (chasing && d < 1.4 && Math.abs(ty - b.y) < 1.9 && b.atk <= 0) {   // bite
+    b.atk = 1.1;
+    if (b.target === 'P') hurtPlayer(7 + rnd() * 4, [b.x, b.y, b.z]);
+    else damageBot(b.target, b.target.remote ? 14 * 1.6 : 22, 'zombie');
+    if (G.sfx && soundOK([b.x, b.y, b.z], 30)) G.sfx.bite([b.x, b.y + 1.4, b.z]);
+  }
+  if (mx || mz) b.yaw += angDiff(Math.atan2(-mx, -mz), b.yaw) * Math.min(1, dt * 9);
+  const acc = b.onGround ? 11 : 3;
+  b.vx += (mx * spd - b.vx) * Math.min(1, acc * dt); b.vz += (mz * spd - b.vz) * Math.min(1, acc * dt);
+  b.inWater = w.get(Math.floor(b.x), Math.floor(b.y + 0.4), Math.floor(b.z)) === B.WATER;
+  if (b.inWater) { b.vy -= 6 * dt; b.vy *= (1 - 2 * dt); if (chasing) b.vy = Math.max(b.vy, 2.2); }
+  else b.vy -= 27 * dt;
+  if (b.vy < -40) b.vy = -40;
+  const px = b.x, pz = b.z;
+  moveBody(w, b, dt);
+  const moved = Math.hypot(b.x - px, b.z - pz) / Math.max(dt, 0.001);
+  if ((mx || mz) && moved < spd * 0.35 && (b.hitX || b.hitZ)) {        // blocked: hop, then scramble up the wall
+    if (b.onGround) { b.vy = 9.4; b.onGround = false; }
+    else if (b.climbT < 2.4) { b.vy = Math.max(b.vy, 3.6); b.climbT += dt; }
+  }
+  if (b.onGround) b.climbT = 0;
+  b.spd = moved; b.anim += moved * dt * 2.6;
+  b.groan -= dt;
+  if (b.groan <= 0) { b.groan = 4 + rnd() * 8; if (G.sfx && soundOK([b.x, b.y, b.z], 45)) G.sfx.groan([b.x, b.y + 1.6, b.z]); }
+}
+G.makeZombie = makeZombie;
 function botEye(b) { return b.y + 1.55; }
 function targetPos(t) { return t === 'P' ? [G.vehPos ? G.vehPos[0] : G.p.x, (G.vehPos ? G.vehPos[1] : G.p.y) + 1.2, G.vehPos ? G.vehPos[2] : G.p.z] : [t.x, t.y + 1.2, t.z]; }
 function los(a, bpos) {
@@ -3712,9 +3857,10 @@ function damageBot(b, d, by, head, silent) {
   if (b.hp <= 0) {
     b.alive = false; b.deadT = 0;
     if (by === 'player') {
-      G.kills++; feed(head ? 'Headshot!' : 'Enemy eliminated', head ? '#ffd24a' : '#fff');
+      G.kills++; feed(head ? 'Headshot!' : b.team === 2 ? 'Zombie down' : 'Enemy eliminated', head ? '#ffd24a' : b.team === 2 ? '#9dff7a' : '#fff');
       G.sfx && G.sfx.kill();
     } else if (by === 'ally' && b.team === 1 && rnd() < 0.5) feed('Ally ▸ Enemy', '#8ab4ff');
+    if (b.team === 2 && rnd() < 0.12) G.pickups.push({ kind: 'med', pos: [b.x, b.y + 0.2, b.z], id: rnd() * 9, on: true, t: 0 });
     if (b.team === 1 && rnd() < 0.34) G.pickups.push({ kind: rnd() < 0.55 ? 'ammo' : 'med', pos: [b.x, b.y + 0.2, b.z], id: rnd() * 9, on: true, t: 0 });
   }
 }
@@ -3876,11 +4022,11 @@ function manageSpawns(dt) {
   let enemies = 0, allies = 0, nearE = 0;
   for (const b of G.bots) {
     if (!b.alive || b.remote) continue;
-    if (b.team === 1) { enemies++; if (Math.hypot(b.x - p.x, b.z - p.z) < 150) nearE++; } else allies++;
+    if (b.team === 1) { enemies++; if (Math.hypot(b.x - p.x, b.z - p.z) < 150) nearE++; } else if (b.team === 0) allies++;
   }
   // despawn far enemies
   for (const b of G.bots) {
-    if (b.team === 1 && b.alive && anchors.every(a => Math.hypot(b.x - a.x, b.z - a.z) > 210)) b.remove = true;
+    if ((b.team === 1 || b.team === 2) && b.alive && anchors.every(a => Math.hypot(b.x - a.x, b.z - a.z) > 210)) b.remove = true;
   }
   // outposts near the player
   const rx0 = Math.floor(p.x / CF.REG), rz0 = Math.floor(p.z / CF.REG);
@@ -3911,6 +4057,19 @@ function manageSpawns(dt) {
       if (x > base.x0 - 20 && x < base.x1 + 20 && z > base.z0 - 20 && z < base.z1 + 20) continue;
       const n = 1 + ((rnd() * 3) | 0);
       for (let i = 0; i < n && nearE < cfg.enemies; i++) { makeBot(1, x + i * 1.5, y, z + (rnd() - 0.5) * 3, { home: [x, z], homeR: 28 }); nearE++; }
+      break;
+    }
+  }
+  // zombies roam around the players
+  if ((cfg.zombies || 0) > 0 && G.t > 5) {
+    let zNear = 0; for (const b of G.bots) if (b.team === 2 && b.alive && Math.hypot(b.x - p.x, b.z - p.z) < 160) zNear++;
+    if (zNear < cfg.zombies) for (let tries = 0; tries < 6; tries++) {
+      const a = rnd() * 6.28, d = 40 + rnd() * 70;
+      const x = p.x + Math.cos(a) * d, z = p.z + Math.sin(a) * d, y = groundSpawn(x, z); if (y === null) continue;
+      const base = gen.base;
+      if (x > base.x0 - 20 && x < base.x1 + 20 && z > base.z0 - 20 && z < base.z1 + 20) continue;
+      const n = Math.min(cfg.zombies - zNear, 1 + ((rnd() * 3) | 0));
+      for (let i = 0; i < n; i++) makeZombie(x + (rnd() - 0.5) * 3, y, z + (rnd() - 0.5) * 3);
       break;
     }
   }
@@ -4398,7 +4557,7 @@ G.update = function (dt, I) {
   G.vehicles = G.vehicles.filter(v => !(v.temp && !v.alive && v.respawn < 34));
   if (!G.veh) G.vehPos = null;
   if (G.net) G.net.tick(dt);
-  for (const b of G.bots) if (!b.remote && !b.puppet) updateBot(b, dt);
+  for (const b of G.bots) if (!b.remote && !b.puppet) { if (b.team === 2) updateZombie(b, dt); else updateBot(b, dt); }
   G.bots = G.bots.filter(b => !b.remove);
   updateProjs(dt); updateFires(dt); updateFx(dt); updateNuke(dt);
   if (!G.net || G.net.mode !== 'client') { manageSpawns(dt); updateFlags(dt); }
@@ -4599,7 +4758,7 @@ G.curW = currentW;
     mode: 'off', code: '', id: (() => { let v = null; try { v = sessionStorage.getItem('cf.pid'); } catch (e) { /* ignore */ } if (!v) { v = Math.random().toString(36).slice(2, 8); try { sessionStorage.setItem('cf.pid', v); } catch (e) { /* ignore */ } } return v; })(), status: '', room: null, hostCfg: null,
     peers: [], players: 0, taken: new Set(),
   };
-  let seq = 0, hits = [], evs = [], dms = [], sendT = 0, lastSend = 0, timer = null;
+  let seq = 0, hits = [], evs = [], dms = [], kcs = [], lastKc = 0, sendT = 0, lastSend = 0, timer = null;
   const lastHit = new Map(), lastEv = new Map(), shotSeen = new Map();
   const remotes = new Map();
   let lastDm = 0, peerObjs = new Map(), puppets = new Map(), hostState = null, myName = 'Player';
@@ -4732,7 +4891,7 @@ G.curW = currentW;
     clearInterval(N.lobbyIv); N.lobbyIv = setInterval(stub, 400); stub();
   };
   N.attach = function (cfgOut) {
-    G.net = N; N.cfgOut = cfgOut || null; N.lastHostSeen = performance.now(); puppets = new Map(); remotes.clear(); lastHit.clear(); lastEv.clear(); shotSeen.clear(); lastDm = 0;
+    G.net = N; N.cfgOut = cfgOut || null; N.lastHostSeen = performance.now(); puppets = new Map(); remotes.clear(); kcs = []; lastKc = 0; lastHit.clear(); lastEv.clear(); shotSeen.clear(); lastDm = 0;
     hits = []; evs = []; dms = []; seq = 0;
     if (timer) clearInterval(timer);
     timer = setInterval(() => { if (G.net && performance.now() - (N.lastTick || 0) > 600) pushPresence(); }, 400);
@@ -4755,7 +4914,7 @@ G.curW = currentW;
     const s = { cf: 1, id: N.id, hs: N.mode === 'host' ? 1 : 0, nm: myName,
       x: Math.round(p.x * 100) / 100, y: Math.round(p.y * 100) / 100, z: Math.round(p.z * 100) / 100,
       yw: Math.round(p.yaw * 100) / 100, pt: Math.round(p.pitch * 100) / 100, wp: G.WEAPONS[p.wi].id, hp: Math.round(p.hp), al: p.alive ? 1 : 0,
-      sp: Math.round(p.spd * 10) / 10, sh: p.shots || 0, hits: hits.slice(-16), ev: evs.slice(-6), sq: ++sendSeq, ts: Math.round(performance.now()) };
+      sp: Math.round(p.spd * 10) / 10, sh: p.shots || 0, k: G.kills || 0, hits: hits.slice(-16), ev: evs.slice(-6), sq: ++sendSeq, ts: Math.round(performance.now()) };
     const v = G.veh;
     if (v && v.alive) {
       const t = performance.now() / 1000; let vel = [0, 0, 0];
@@ -4768,7 +4927,7 @@ G.curW = currentW;
     } else lastVeh = null;
     if (G.ride) s.rd = [G.ride.id, G.ride.seat];
     if (N.mode === 'host') {
-      s.cfg = N.cfgOut; s.full = N.players >= 4 ? 1 : 0; s.dm = dms.slice(-20);
+      s.cfg = N.cfgOut; s.full = N.players >= 4 ? 1 : 0; s.dm = dms.slice(-20); s.kc = kcs.slice(-12);
       const anchors = [[p.x, p.z]]; for (const b of G.bots) if (b.remote) anchors.push([b.x, b.z]);
       const list = [];
       for (const b of G.bots) {
@@ -4778,7 +4937,7 @@ G.curW = currentW;
         list.push([dm, b]);
       }
       list.sort((a, c) => a[0] - c[0]);
-      s.bots = list.slice(0, 45).map(([, b]) => [b.nid, b.team, Math.round(b.x * 10), Math.round(b.y * 10), Math.round(b.z * 10), Math.round(b.yaw * 100), Math.round(b.pitch * 100),
+      s.bots = list.slice(0, 60).map(([, b]) => [b.nid, b.team, Math.round(b.x * 10), Math.round(b.y * 10), Math.round(b.z * 10), Math.round(b.yaw * 100), Math.round(b.pitch * 100),
         Math.max(0, BW.indexOf(b.wpn)), b.skin, b.seed, b.alive ? 1 : 0, b.flash > 0.03 ? 1 : 0]);
     }
     try { N.room.presence(s); } catch (e) { N.status = 'send error'; }
@@ -4866,7 +5025,7 @@ G.curW = currentW;
       if (typeof s.x !== 'number' || typeof s.yw !== 'number' || !isFinite(s.x + s.y + s.z + s.yw)) continue;
       states.push(s);
       const b = ensureRemote(s); b.seenAt = now;
-      b.tx = s.x; b.ty = s.y; b.tz = s.z; b.tyaw = s.yw; b.alive = !!s.al; b.hp = s.hp; b.wpn = s.wp; b.nm = s.nm || b.nm; b.pitch = s.pt || 0;
+      b.kills = s.k || 0; b.tx = s.x; b.ty = s.y; b.tz = s.z; b.tyaw = s.yw; b.alive = !!s.al; b.hp = s.hp; b.wpn = s.wp; b.nm = s.nm || b.nm; b.pitch = s.pt || 0;
       const wasAlive = b._wasAlive; b._wasAlive = b.alive;
       if (b.alive && !wasAlive) { b.x = s.x; b.y = s.y; b.z = s.z; b.yaw = s.yw; b.deadT = 0; b.fall = 0; }
       const ps = shotSeen.get(s.id);
@@ -4889,7 +5048,7 @@ G.curW = currentW;
         let last = lastHit.get(s.id) || 0;
         for (const h of (s.hits || [])) if (h[0] > last) {
           last = h[0]; const t = G.bots.find(x => x.nid === h[1] && !x.remote && !x.puppet);
-          if (t && t.alive) G.hooks.damageBot(t, Math.min(150, h[2]), 'ally');
+          if (t && t.alive) { G.hooks.damageBot(t, Math.min(150, h[2]), 'ally'); if (!t.alive) { kcs.push([++seq, s.id, t.team]); if (kcs.length > 20) kcs.shift(); } }
         }
         lastHit.set(s.id, last);
       }
@@ -4935,6 +5094,8 @@ G.curW = currentW;
       // damage dealt to me
       for (const d of (hostState.dm || [])) if (d[0] > lastDm) { lastDm = d[0]; if (d[1] === N.id) G.hooks.hurtPlayer(d[2], [d[3], G.p.y, d[4]]); }
       if (hostState.dm && hostState.dm.length) lastDm = Math.max(lastDm, hostState.dm[hostState.dm.length - 1][0]);
+      // kills I made on the host's soldiers and zombies
+      for (const c of (hostState.kc || [])) if (c[0] > lastKc) { lastKc = c[0]; if (c[1] === N.id) { G.kills++; G.hooks.feed(c[2] === 2 ? 'Zombie down' : 'Enemy eliminated', c[2] === 2 ? '#9dff7a' : '#fff'); G.sfx && G.sfx.kill(); } }
       // puppets
       const ids = new Set();
       for (const e of (hostState.bots || [])) {
@@ -4968,10 +5129,10 @@ G.curW = currentW;
     G.hooks.feed('The world host left · reconnecting…', '#ffd24a');
     for (let attempt = 0; attempt < 12 && !G.net; attempt++) {
       await new Promise(r => setTimeout(r, 300 + Math.random() * 1700));
-      try { const hc = await N.join(code); G.cfg.enemies = 0; G.cfg.allies = 0; N.attach(hc); G.hooks.feed('Reconnected to the world', '#ffd24a'); break; } catch (e) { /* nobody hosting yet */ }
+      try { const hc = await N.join(code); G.cfg.enemies = 0; G.cfg.allies = 0; G.cfg.zombies = 0; N.attach(hc); G.hooks.feed('Reconnected to the world', '#ffd24a'); break; } catch (e) { /* nobody hosting yet */ }
       try {
         await N.host(code);
-        G.cfg.enemies = N.wantEnemies == null ? 20 : N.wantEnemies; G.cfg.allies = N.wantAllies == null ? 8 : N.wantAllies;
+        G.cfg.enemies = N.wantEnemies == null ? 20 : N.wantEnemies; G.cfg.allies = N.wantAllies == null ? 8 : N.wantAllies; G.cfg.zombies = N.wantZombies == null ? 15 : N.wantZombies;
         N.attach({ seed: keep.seed, world: keep.world, enemies: G.cfg.enemies });
         G.hooks.feed('You are now hosting the world', '#ffd24a'); break;
       } catch (e) { /* someone else took over first: join them next round */ }
@@ -4988,9 +5149,9 @@ G.curW = currentW;
 const CF = window.CF, G = CF.G;
 const $ = id => document.getElementById(id);
 const canvas = $('c');
-const DEF = { seed: '', world: 'wild', rd: 32, enemies: 20, allies: 8, sens: 1, fov: 85, vol: 0.8, scale: 1 };
+const DEF = { seed: '', world: 'wild', rd: 32, enemies: 20, allies: 8, zombies: 15, sens: 1, fov: 85, vol: 0.8, scale: 1 };
 const IS_TOUCH = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0 && window.matchMedia && matchMedia('(pointer:coarse)').matches);
-if (IS_TOUCH) { DEF.rd = 32; DEF.scale = 0.7; DEF.enemies = 14; DEF.allies = 5; DEF.sens = 1.3; document.body.classList.add('touch'); }
+if (IS_TOUCH) { DEF.rd = 32; DEF.scale = 0.7; DEF.enemies = 14; DEF.allies = 5; DEF.zombies = 10; DEF.sens = 1.3; document.body.classList.add('touch'); }
 let cfg = Object.assign({ ver: 5 }, DEF);
 try { const s = JSON.parse(localStorage.getItem('cubefront.v1') || 'null'); if (s) { cfg = Object.assign(cfg, s); if ((s.ver || 1) < 2) { cfg.rd = Math.max(cfg.rd, DEF.rd); cfg.fov = Math.max(cfg.fov, DEF.fov); cfg.ver = 2; } if ((s.ver || 1) < 5) { cfg.rd = Math.max(cfg.rd, 32); cfg.ver = 5; } } } catch (e) { /* ignore */ }
 function saveCfg() { try { localStorage.setItem('cubefront.v1', JSON.stringify(cfg)); } catch (e) { /* ignore */ } }
@@ -5091,7 +5252,7 @@ if (IS_TOUCH) (function () {
   function act(name, down) {
     if (name === 'fire') { I.fire = down; if (down) I.firePressed = true; }
     else if (name === 'ads') { if (CF.G.veh) I.ads = down; else if (down) { I.aimToggle = !I.aimToggle; I.ads = I.aimToggle; } }
-    else if (name === 'jump') I.k.Space = down;
+    else if (name === 'jump') { I.k.Space = down; if (down) I.pressed.Space = true; }
     else if (name === 'down') { I.k.KeyC = down; }
     else if (name === 'run') { held.run = down; if (!down) I.k.ShiftLeft = false; else I.k.ShiftLeft = true; }
     else if (down) {
@@ -5167,6 +5328,7 @@ const SL = [
   ['rd', 'Render distance', 4, 64, 1, v => (v * 16) + ' m'],
   ['enemies', 'Enemy soldiers', 0, 60, 1, v => v],
   ['allies', 'Allied soldiers', 0, 30, 1, v => v],
+  ['zombies', 'Zombies', 0, 80, 1, v => v],
   ['sens', 'Mouse sensitivity', 0.2, 3, 0.05, v => v.toFixed(2) + '×'],
   ['fov', 'Field of view', 60, 110, 1, v => v + '°'],
   ['vol', 'Volume', 0, 1, 0.05, v => Math.round(v * 100) + '%'],
@@ -5220,8 +5382,8 @@ function startGame(fresh, ov) {
   // free old gl chunks
   if (G.world) for (const c of G.world.chunks.values()) gfx.freeChunk(c);
   setTimeout(() => {
-    G.init({ seed: sd, world: wld, rd: cfg.rd, enemies: ov && ov.client ? 0 : cfg.enemies, allies: ov && ov.client ? 0 : cfg.allies, sens: cfg.sens, fov: cfg.fov }, gfx, sfx);
-    CF.Net.wantEnemies = cfg.enemies; CF.Net.wantAllies = cfg.allies;
+    G.init({ seed: sd, world: wld, rd: cfg.rd, enemies: ov && ov.client ? 0 : cfg.enemies, allies: ov && ov.client ? 0 : cfg.allies, zombies: ov && ov.client ? 0 : cfg.zombies, sens: cfg.sens, fov: cfg.fov }, gfx, sfx);
+    CF.Net.wantEnemies = cfg.enemies; CF.Net.wantAllies = cfg.allies; CF.Net.wantZombies = cfg.zombies;
     if (ov && ov.net) CF.Net.attach({ seed: sd, world: wld, enemies: cfg.enemies }); else if (CF.Net.mode !== 'off') CF.Net.leave();
     started = true; running = true; paused = true;
     let t0 = performance.now();
@@ -5284,7 +5446,19 @@ function drawMini() {
       mm.stroke();
       dot(nv.target.x, nv.target.z, '#ff3b30', 6);
     } }
-  for (const b of G.bots) if (b.alive) dot(b.x, b.z, b.team === 1 ? '#ff4a3a' : b.tint ? 'rgb(' + b.tint.map(c => Math.round(c * 255)).join(',') + ')' : '#4a8aff', b.remote ? 4 : 3);
+  const tcol = b => 'rgb(' + b.tint.map(c => Math.round(c * 255)).join(',') + ')';
+  for (const b of G.bots) if (b.alive && !b.remote) dot(b.x, b.z, b.team === 1 ? '#ff4a3a' : b.team === 2 ? '#8dff5a' : '#4a8aff', 3);
+  for (const b of G.bots) {
+    if (!b.alive || !b.remote) continue;
+    let mx = S / 2 + (b.x - p.x), mz = S / 2 + (b.z - p.z);
+    const far = mx < 6 || mz < 6 || mx > S - 6 || mz > S - 6;
+    if (far) { const ang = Math.atan2(mz - S / 2, mx - S / 2), r = S / 2 - 6; mx = S / 2 + Math.cos(ang) * r; mz = S / 2 + Math.sin(ang) * r; }
+    mm.fillStyle = tcol(b); mm.strokeStyle = '#000'; mm.lineWidth = 1.5;
+    mm.beginPath(); mm.arc(mx, mz, far ? 3 : 3.5, 0, 6.3); mm.fill(); mm.stroke();
+    mm.font = '700 9px system-ui,sans-serif'; mm.textAlign = mx > S - 30 ? 'right' : 'left'; mm.textBaseline = 'middle';
+    const tx = mx + (mm.textAlign === 'right' ? -5 : 5);
+    mm.lineWidth = 2.5; mm.strokeStyle = '#000c'; mm.strokeText(b.nm || 'Player', tx, mz); mm.fillStyle = '#fff'; mm.fillText(b.nm || 'Player', tx, mz);
+  }
   for (const v of G.vehicles) if (v.alive) dot(v.x, v.z, '#ffffff', 5);
   const rx0 = Math.floor(p.x / CF.REG), rz0 = Math.floor(p.z / CF.REG);
   for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) { const o = G.world.gen.outpost(rx0 + dx, rz0 + dz); if (o) dot(o.x, o.z, o.captured ? '#4a8aff' : '#ffd24a', 5); }
@@ -5414,7 +5588,7 @@ function openMap() {
   I.fire = false; I.ads = false; I.k = {};
   if (document.pointerLockElement) try { document.exitPointerLock(); } catch (e) { /* ignore */ }
   bigMap.style.display = 'block';
-  bv.x = G.p.x; bv.z = G.p.z; bv.s = Math.max(bv.s, 0.3);
+  bv.x = G.p.x; bv.z = G.p.z; bv.s = Math.max(bv.s, 0.3); bv.follow = true;
   if (CF.Nav.target) CF.Nav.update(G.p, 0, false);
   bmHint(); drawBig();
 }
@@ -5423,7 +5597,7 @@ function closeMap() {
   if (!I.touch) requestLock();
 }
 $('bmClose').addEventListener('click', closeMap);
-$('bmMe').addEventListener('click', () => { bv.x = G.p.x; bv.z = G.p.z; drawBig(); });
+$('bmMe').addEventListener('click', () => { bv.x = G.p.x; bv.z = G.p.z; bv.follow = true; drawBig(); });
 $('bmStop').addEventListener('click', () => { CF.Nav.clear(); bmHint(); drawBig(); });
 $('miniWrap').addEventListener('click', () => { if (!mapOpen) openMap(); });
 function drawBig() {
@@ -5467,6 +5641,15 @@ function drawBig() {
     x.fillStyle = '#ff3b30'; x.strokeStyle = '#fff'; x.lineWidth = 2.5; x.beginPath(); x.arc(dx, dy - 10, 7, 0, 6.3); x.fill(); x.stroke();
     x.beginPath(); x.moveTo(dx - 5, dy - 6); x.lineTo(dx, dy); x.lineTo(dx + 5, dy - 6); x.fillStyle = '#ff3b30'; x.fill();
   }
+  for (const b of G.bots) {
+    if (!b.alive || !b.remote) continue;
+    const [fx, fy] = sp(b.x, b.z);
+    x.fillStyle = b.tint ? 'rgb(' + b.tint.map(c => Math.round(c * 255)).join(',') + ')' : '#4a8aff';
+    x.strokeStyle = '#fff'; x.lineWidth = 2.5; x.beginPath(); x.arc(fx, fy, 7, 0, 6.3); x.fill(); x.stroke();
+    x.font = '800 13px system-ui,sans-serif'; x.textAlign = 'left'; x.textBaseline = 'middle'; x.lineWidth = 3.5; x.strokeStyle = 'rgba(0,0,0,.75)';
+    const nm = (b.nm || 'Player') + (b.hidden ? ' ✈' : '');
+    x.strokeText(nm, fx + 11, fy); x.fillStyle = '#fff'; x.fillText(nm, fx + 11, fy);
+  }
   const [ppx, ppy] = sp(G.p.x, G.p.z);
   x.save(); x.translate(ppx, ppy); x.rotate(-(G.camYaw || 0));
   x.fillStyle = '#2f7bff'; x.strokeStyle = '#fff'; x.lineWidth = 2.5; x.beginPath(); x.moveTo(0, -11); x.lineTo(8, 9); x.lineTo(0, 5); x.lineTo(-8, 9); x.closePath(); x.fill(); x.stroke(); x.restore();
@@ -5494,7 +5677,7 @@ function setDest(px, py) {
     pts.set(id, p);
     if (pts.size === 1) {
       if (tap && Math.hypot(p[0] - tap.x, p[1] - tap.y) > 8) tap.moved = true;
-      bv.x -= (p[0] - o[0]) / bv.s; bv.z -= (p[1] - o[1]) / bv.s;
+      bv.x -= (p[0] - o[0]) / bv.s; bv.z -= (p[1] - o[1]) / bv.s; bv.follow = false;
     } else if (pts.size === 2 && pinch) {
       const a = [...pts.values()], d = Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]);
       const mx = (a[0][0] + a[1][0]) / 2, my = (a[0][1] + a[1][1]) / 2, W = LW(), H = LH();
@@ -5530,7 +5713,7 @@ function setDest(px, py) {
 
 // ------------------------------------------------------------------ loop
 let last = performance.now(), fpsAcc = 0, fpsN = 0;
-let rdEff = cfg.rd, lastRd = cfg.rd, slowT = 0;
+let rdEff = cfg.rd, lastRd = cfg.rd, slowT = 0, bigT = 0;
 const IDLE_IN = { k: {}, pressed: {}, dx: 0, dy: 0, wheel: 0, fire: false, firePressed: false, ads: false, locked: false, fallback: false, sx: 0, sy: 0, rx: 0, ry: 0 };
 const tagEls = [];
 function nameTags() {
@@ -5583,6 +5766,7 @@ function frame(now) {
   if (!paused) G.drawViewmodel();
   gfx.drawViewmodel(1.05);
   if (!paused) { hud(dt); nameTags(); }
+  if (mapOpen) { bigT -= dt; if (bigT <= 0) { bigT = 0.14; if (bv.follow) { bv.x = G.p.x; bv.z = G.p.z; } drawBig(); } }
 }
 requestAnimationFrame(frame);
 window.addEventListener('resize', () => { applyRot(); gfx.resize(cfg.scale); });
@@ -5598,7 +5782,10 @@ CF.debug = { G, gfx, I, cfg, setPaused, startGame };
     const N = CF.Net;
     if (N.mode === 'off') { info.classList.add('hide'); return; }
     info.classList.remove('hide');
-    info.innerHTML = 'ONLINE · <b>' + N.players + '</b> player' + (N.players === 1 ? '' : 's') + ' in the world';
+    const rows = [[cfg.name || 'You', G.kills || 0, 1]]; for (const b of G.bots) if (b.remote) rows.push([b.nm || 'Player', b.kills || 0, 0]);
+    rows.sort((p, q) => q[1] - p[1]);
+    const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+    info.innerHTML = 'ONLINE · <b>' + N.players + '</b> player' + (N.players === 1 ? '' : 's') + rows.map(r => '<div class="nrow' + (r[2] ? ' me' : '') + '"><span>' + esc(r[0]) + '</span><span>' + r[1] + ' kills</span></div>').join('');
   }, 700);
   info.addEventListener('click', () => { try { navigator.clipboard.writeText(CF.Net.link()); info.textContent = 'Link copied'; } catch (e) { /* ignore */ } });
 
@@ -5606,7 +5793,7 @@ CF.debug = { G, gfx, I, cfg, setPaused, startGame };
   const rb = $('roomBox'), ctl = $('ctl');
   $('rbCopy').addEventListener('click', () => { const l = $('rbLink'); l.select(); try { navigator.clipboard.writeText(l.value); $('rbCopy').textContent = 'Copied!'; setTimeout(() => $('rbCopy').textContent = 'Copy link', 1500); } catch (e) { /* ignore */ } });
   const CT = {
-    foot: ['On foot', [['W A S D', 'Move'], ['Shift', 'Sprint'], ['Space', 'Jump'], ['LMB', 'Fire'], ['RMB', 'Aim'], ['R', 'Reload'], ['1-7 / wheel', 'Weapons'], ['G', 'Grenade'], ['E', 'Enter vehicle / ride along'], ['B', 'Motorbike'], ['M', 'Map'], ['Esc', 'Pause']]],
+    foot: ['On foot', [['W A S D', 'Move'], ['Shift', 'Sprint'], ['Space', 'Jump (press again: double jump)'], ['LMB', 'Fire'], ['RMB', 'Aim'], ['R', 'Reload'], ['1-7 / wheel', 'Weapons'], ['G', 'Grenade'], ['E', 'Enter vehicle / ride along'], ['B', 'Motorbike'], ['M', 'Map'], ['Esc', 'Pause']]],
     heli: ['Helicopter', [['W / S', 'Tilt fwd / back'], ['A / D', 'Strafe'], ['Mouse', 'Turn'], ['Space', 'Up'], ['Shift', 'Down'], ['LMB', 'Guns'], ['RMB / Q', 'Rockets'], ['N', 'Drop nuke'], ['E', 'Exit']]],
     jet: ['Jet', [['W / S', 'Throttle'], ['Mouse', 'Steer'], ['Shift', 'Afterburner'], ['LMB', 'Guns'], ['RMB / Q', 'Rockets'], ['E', 'Exit']]],
     bike: ['Motorbike', [['W / S', 'Gas / brake'], ['A / D', 'Steer'], ['B', 'Get off']]],
