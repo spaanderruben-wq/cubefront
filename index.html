@@ -188,7 +188,7 @@ html.rot.flip body{left:0;top:100%;transform:rotate(-90deg)}
       <div id="roomBox"><div class="sub">ONLINE ROOM · share this with your friends</div><b id="rbCode"></b><input id="rbLink" readonly><button id="rbCopy">Copy link</button></div><h1>CUBEFRONT</h1>
       <div class="sub">Endless block warfare · every block is one metre</div>
       <div class="btns"><button id="playBtn">Play</button><button id="newBtn" class="alt">New world</button><button id="flipBtn" class="alt">Flip screen ⇄</button><button id="sndBtn" class="alt">🔊 Test sound</button></div><div id="sndMsg" class="sub" style="margin-top:-6px"></div>
-      <div class="card"><h3>Play online (co-op, up to 4)</h3><input id="pname" placeholder="Your name" maxlength="14" style="margin-bottom:8px;width:100%"><div class="btns"><button id="hostBtn">Host a room</button></div><div id="joinRow" style="display:flex;gap:6px;margin-top:8px"><input id="joinCode" placeholder="Room code" maxlength="8" style="text-transform:uppercase"><button id="joinBtn" class="alt">Join</button></div><div id="netMsg" class="sub"></div><div class="sub">Host sets the world, seed and enemy count below, then shares the code. Everyone fights the same enemies.</div></div>
+      <div class="card"><h3>Play online (co-op, up to 4)</h3><input id="pname" placeholder="Your name" maxlength="14" style="margin-bottom:8px;width:100%"><div class="btns"><button id="worldBtn">Join the world</button><button id="hostBtn" class="alt">Host a private room</button></div><div class="sub">“Join the world” puts you in the one shared Arnhem world with everyone else playing right now.</div><div id="joinRow" style="display:flex;gap:6px;margin-top:8px"><input id="joinCode" placeholder="Room code" maxlength="8" style="text-transform:uppercase"><button id="joinBtn" class="alt">Join</button></div><div id="netMsg" class="sub"></div><div class="sub">Host sets the world, seed and enemy count below, then shares the code. Everyone fights the same enemies.</div></div>
       <div class="card"><h3>World</h3><div id="worldRow"><button class="wbtn alt" data-w="wild">Wilderness</button><button class="wbtn alt" data-w="arnhem">Arnhem</button></div><div class="sub">Both are built from 1 m blocks. Press “New world” after switching.</div></div>
       <div class="card"><h3>World seed</h3><div id="seedRow"><input id="seed" placeholder="Leave empty for a random world" maxlength="24"><button id="randSeed" class="alt">🎲</button></div></div>
       <div class="card touchCard"><h3>Touch controls</h3><div class="keys"><kbd>Left thumb</kbd><span>Drag anywhere on the left side to move</span><kbd>Right thumb</kbd><span>Drag on the right side to look around</span><kbd>Buttons</kbd><span>FIRE (next to the stick, or on the right) · AIM (tap to toggle) · JUMP · RELOAD · GRENADE · SWITCH GUN · USE near the helicopter or jet to get in or out. Push the stick further to run faster (afterburner in the jet).</span><kbd>Vehicles</kbd><span>Heli: stick moves, JUMP up, DOWN down. Jet: stick up/down = throttle, left/right = turn, drag to pitch. AIM fires rockets.</span></div></div>
@@ -2297,13 +2297,14 @@ void main() {
       if (t > 0.0 && t < 14000.0) {
         vec2 p = (uCam.xz + d.xz * t) * 0.0016 + vec2(uTime * 0.004, uTime * 0.0012);
         float f = 0.0, a = 0.5; vec2 q = p;
-        for (int k = 0; k < 5; k++) { f += a * vnoise(q * 4.0); q = q * 2.03 + 7.1; a *= 0.5; }
+        float fl = 0.0;
+        for (int k = 0; k < 4; k++) { f += a * vnoise(q * 4.0); q = q * 2.03 + 7.1; a *= 0.5; if (k == 1) fl = f; }
         float cov = smoothstep(0.46, 0.72, f);
         // sun-facing side brighter, underside greyer: sample density toward the sun
         vec2 sdir = normalize(uSun.xz + 1e-4) * 0.05;
         float f2 = 0.0; a = 0.5; q = p + sdir;
-        for (int k = 0; k < 4; k++) { f2 += a * vnoise(q * 4.0); q = q * 2.03 + 7.1; a *= 0.5; }
-        float shade = clamp((f - f2) * 5.0 + 0.55, 0.0, 1.0);
+        for (int k = 0; k < 2; k++) { f2 += a * vnoise(q * 4.0); q = q * 2.03 + 7.1; a *= 0.5; }
+        float shade = clamp((fl - f2) * 5.0 + 0.55, 0.0, 1.0);
         vec3 lit = vec3(1.0, 0.985, 0.95), dark = vec3(0.66, 0.72, 0.82);
         vec3 cc = mix(dark, lit, shade) + uSunCol * 0.06 * pow(max(sd, 0.0), 8.0);
         float fade = (1.0 - smoothstep(4000.0, 14000.0, t)) * smoothstep(0.01, 0.07, hs);
@@ -2604,7 +2605,7 @@ class Gfx {
     const sun = this.env.sun;
     const sr = norm3(cross3([0, 1, 0], sun)), su = cross3(sun, sr);
     gl.uniform3fv(s.u.uSunR, sr); gl.uniform3fv(s.u.uSunU, su);
-    gl.depthMask(false); gl.disable(gl.DEPTH_TEST);
+    gl.depthMask(false); gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL);
     gl.bindVertexArray(this.skyVao);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     gl.depthMask(true); gl.enable(gl.DEPTH_TEST);
@@ -4646,9 +4647,9 @@ G.curW = currentW;
   function pubLink() { return (N.via === 'peer' ? location.href.split('#')[0] : 'https://claude.ai/artifact/3CqGTjTbxjWXW44zQh7SPo') + '#room-' + N.code; }
   N.link = pubLink;
 
-  N.host = async function () {
-    const code = Array.from({ length: 4 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ'[(Math.random() * 24) | 0]).join('');
-    N.wantHost = true; await connect(code); N.mode = 'host'; return code;
+  N.host = async function (fixed) {
+    const code = fixed || Array.from({ length: 4 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ'[(Math.random() * 24) | 0]).join('');
+    N.wantHost = true; await connect(code); N.mode = 'host'; N.players = Math.max(1, N.players); return code;
   };
   N.join = async function (code) {
     code = String(code || '').trim().toUpperCase();
@@ -5039,7 +5040,7 @@ function startGame(fresh, ov) {
       if (missing > 0 && el < 20000) { requestAnimationFrame(step); return; }
       $('load').classList.add('hide');
       setPaused(false); $('playBtn').textContent = 'Resume';
-      G.toast = ov && ov.net ? { msg: ov.client ? 'JOINED ROOM ' + CF.Net.code : 'ROOM ' + CF.Net.code + ' · PRESS L TO COPY THE LINK', t: 9 } : { msg: cfg.world === 'arnhem' ? 'ARNHEM · REAL MAP · TAP THE MINIMAP FOR MAP + NAVIGATION' : 'FIND OUTPOSTS · CAPTURE THEIR FLAGS', t: 4 };
+      G.toast = ov && ov.net ? { msg: ov.client ? 'JOINED ROOM ' + CF.Net.code : 'ROOM ' + CF.Net.code + ' · LINK COPIED · PRESS L TO COPY AGAIN', t: 10 } : { msg: cfg.world === 'arnhem' ? 'ARNHEM · REAL MAP · TAP THE MINIMAP FOR MAP + NAVIGATION' : 'FIND OUTPOSTS · CAPTURE THEIR FLAGS', t: 4 };
     };
     requestAnimationFrame(step);
   }, 30);
@@ -5375,10 +5376,10 @@ function frame(now) {
   G.camera(dt);
   const R = rdEff * 16;
   gfx.env.fog = [R * 0.55, R * 0.97]; gfx.env.under = G.eyeInWater ? 1 : 0; gfx.time = G.t;
-  gfx.drawSky();
   gfx.drawWorld(G.world, R + 8);
   G.drawEntities();
   gfx.drawBoxes();
+  gfx.drawSky();
   gfx.drawWater();
   if (!paused) G.drawViewmodel();
   gfx.drawViewmodel(1.05);
@@ -5428,17 +5429,35 @@ CF.debug = { G, gfx, I, cfg, setPaused, startGame };
   $('pname').addEventListener('input', applyName); applyName();
   $('hostBtn').addEventListener('click', async () => {
     goFull(); sfx.init(); sfx.setVolume(cfg.vol);
-    if (lobby) { requestLock(); startGame(true, { net: true, seed: lobbySeed, world: cfg.world }); lobby = false; $('hostBtn').textContent = 'Host a room'; return; }
+    if (CF.Net.mode === 'host') { try { navigator.clipboard.writeText(CF.Net.link()); } catch (e) { /* ignore */ } msg('Link copied again. Room ' + CF.Net.code); return; }
     msg('Opening room…');
     try {
       const code = await CF.Net.host();
-      lobby = true; lobbySeed = seedNum(cfg.seed); CF.Net.lobby({ seed: lobbySeed, world: cfg.world, enemies: cfg.enemies }); $('hostBtn').textContent = 'Start game';
       try { navigator.clipboard.writeText(CF.Net.link()); } catch (e) { /* ignore */ }
-      msg('Room ' + code + ' is open. Send the link above to your friends (already copied), then press Start game.');
-      $('roomBox').scrollIntoView({ block: 'nearest' });
+      msg('Room ' + code + ' open. Link copied: ' + CF.Net.link() + (CF.Net.via === 'claude' ? '  (This Claude version only works for friends signed in to Claude. For anyone to join, host from spaanderruben-wq.github.io/cubefront)' : ''));
+      requestLock();
+      if (started && G.world) {
+        CF.Net.attach({ seed: G.cfg.seed, world: G.cfg.world, enemies: cfg.enemies });
+        setPaused(false);
+        G.toast = { msg: 'ROOM ' + code + ' · LINK COPIED · PRESS L TO COPY AGAIN', t: 10 };
+      } else startGame(true, { net: true, seed: seedNum(cfg.seed), world: cfg.world });
     } catch (e) { msg(String(e.message || e)); }
   });
   window.addEventListener('keydown', e => { if (e.code === 'KeyL' && CF.Net.mode !== 'off' && running && !paused) { try { navigator.clipboard.writeText(CF.Net.link()); } catch (x) { /* ignore */ } G.toast = { msg: 'ROOM LINK COPIED · ' + CF.Net.code, t: 3 }; } });
+  $('worldBtn').addEventListener('click', async () => {
+    goFull(); sfx.init(); sfx.setVolume(cfg.vol);
+    msg('Looking for the world…');
+    const WORLD = 'ARNHEM';
+    try {
+      let hc = null;
+      try { hc = await CF.Net.join(WORLD); } catch (e) { hc = null; }
+      if (hc) { requestLock(); startGame(true, { net: true, client: true, seed: hc.seed, world: hc.world }); return; }
+      try { await CF.Net.host(WORLD); } catch (e) {
+        hc = await CF.Net.join(WORLD); requestLock(); startGame(true, { net: true, client: true, seed: hc.seed, world: hc.world }); return;
+      }
+      requestLock(); startGame(true, { net: true, seed: 20241122, world: 'arnhem' });
+    } catch (e) { msg(String(e.message || e)); }
+  });
   $('joinBtn').addEventListener('click', async () => {
     goFull(); sfx.init(); sfx.setVolume(cfg.vol);
     msg('Looking for the host…');
