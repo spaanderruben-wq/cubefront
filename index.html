@@ -208,6 +208,7 @@ body.inair #touch #tAds.dry{opacity:.45}
 #tMic .ti{width:52%!important;height:52%!important}
 body.micon #touch #tMic{background:radial-gradient(circle at 50% 40%,#2fbf5a99,#0d3a1acc 75%)!important;border-color:#7dffa0!important}
 body.micon #tMic .mx{display:none}
+body.voiceoff #touch #tMic{opacity:.3!important}
 body.micblock #touch #tMic{background:radial-gradient(circle at 50% 40%,#b0302a99,#3a0d0dcc 75%)!important;border-color:#ff8a80!important}
 body.mictalk #touch #tMic{box-shadow:0 0 0 4px #7dffa066}
 .vmic{display:inline-block;width:7px;height:11px;border-radius:4px;border:2px solid #9fe8b0;margin-right:6px;vertical-align:-1px;opacity:.7}
@@ -292,7 +293,7 @@ body.touch #touch #tLight{left:84px!important;top:54px!important;width:38px!impo
   <div class="box">
     <div>
       <div id="roomBox"><div class="sub">ONLINE ROOM · share this with your friends</div><b id="rbCode"></b><input id="rbLink" readonly><button id="rbCopy">Copy link</button></div><h1>CUBEFRONT</h1>
-      <div class="sub">Endless block warfare · every block is one metre · all of Arnhem, the road north and Apeldoorn · build 86</div>
+      <div class="sub">Endless block warfare · every block is one metre · all of Arnhem, the road north and Apeldoorn · build 88</div>
       <div class="btns"><button id="playBtn">Join the world</button><button id="newBtn" class="alt">New world</button><button id="flipBtn" class="alt">Flip screen ⇄</button> <button id="fitBtn" class="alt">Screen fit: full</button><button id="sndBtn" class="alt">🔊 Test sound</button><button id="refreshBtn" class="alt" style="display:none">↻ Refresh world</button></div><div id="sndMsg" class="sub" style="margin-top:-6px"></div>
       <div class="card"><h3>Your name</h3><input id="pname" placeholder="Your name" maxlength="14" style="margin-bottom:8px;width:100%"><div class="btns"><button id="worldBtn">Join the world</button><button id="hostBtn" class="alt">Host a private room</button></div><div id="joinRow" style="display:flex;gap:6px;margin-top:8px"><input id="joinCode" placeholder="Room code" maxlength="8" style="text-transform:uppercase"><button id="joinBtn" class="alt">Join</button></div><div id="netMsg" class="sub"></div><div class="sub">Press Play: you join the shared Arnhem world, or start it if nobody is in yet. Up to 4 players share the same world and the same zombies.</div></div>
       <div class="card"><h3>World</h3><div id="worldRow"><button class="wbtn alt" data-w="wild">Wilderness</button><button class="wbtn alt" data-w="arnhem">Arnhem</button></div><div class="sub">Both are built from 1 m blocks. Press “New world” after switching.</div></div>
@@ -6677,7 +6678,7 @@ const VSPEC = {
   heli: { name: 'Hornet Helicopter', hp: 420, gunPts: [[-1.85, 0.86, -0.95], [1.85, 0.86, -0.95]], rktPts: [[-1.4, 0.72, -0.2], [1.4, 0.72, -0.2]],
     pts: [[0, 0.08, 0], [1.0, 0.1, 1.5], [-1.0, 0.1, 1.5], [1.0, 0.1, -1.5], [-1.0, 0.1, -1.5], [0, 1.3, -3.1], [0, 1.7, 6.3], [1.95, 1.0, 0], [-1.95, 1.0, 0], [0, 2.75, 0]] },
   bike: { name: 'Roadster Motorbike', hp: 120, gunPts: [], rktPts: [], pts: [], gear: [] },
-  car: { name: 'abandoned car', hp: 260, gunPts: [], rktPts: [], pts: [], gear: [] },
+  car: { name: 'abandoned car', hp: 520, gunPts: [], rktPts: [], pts: [], gear: [] },
   jet: { name: 'Falcon Jet', hp: 340, gunPts: [[-0.5, 1.0, -3.4], [0.5, 1.0, -3.4]], rktPts: [[-1.8, 0.9, -0.5], [1.8, 0.9, -0.5]],
     pts: [[0, 1.1, -6.3], [0, 1.2, 5.6], [4.8, 1.0, 2.2], [-4.8, 1.0, 2.2], [0, 2.7, 4.4], [1.5, 1.0, -1], [-1.5, 1.0, -1]],
     gear: [[1.2, 0, 1.0], [-1.2, 0, 1.0], [0, 0, -4.2]] },
@@ -6816,7 +6817,22 @@ function updateVehicle(v, dt, I) {
     const sxs = -fz * (bus ? 1.15 : 0.85), szs = fx * (bus ? 1.15 : 0.85);
     let gAhead = gnd(nx + fx * HL * gdir, nz + fz * HL * gdir, v.y); const gHere = gnd(nx, nz, v.y);
     if (car) gAhead = Math.max(gAhead, gnd(nx + fx * HL * gdir + sxs, nz + fz * HL * gdir + szs, v.y), gnd(nx + fx * HL * gdir - sxs, nz + fz * HL * gdir - szs, v.y));
-    if (Math.max(gAhead, gHere) > v.y + 1.15 && v.onGround) {
+    const hitV = vehBlocked(v, nx, nz);
+    if (hitV) { G.lastHitV = hitV;                                   // crashed into another vehicle
+      const imp = Math.abs(v.speed - (hitV.speed || 0) * Math.cos(angDiff(hitV.yaw, v.yaw)));
+      if (imp > 4) {
+        const dmg = (imp - 4) * (car ? 5 : 7);
+        v.hp -= dmg * (bus ? 0.4 : 1); G.shake = occ ? Math.max(G.shake, Math.min(1, imp / 22)) : G.shake;
+        if (occ) { G.sfx && G.sfx.land(); G.sfx && G.sfx.impact && G.sfx.impact(null); if (!car && imp > 9) hurtPlayer((imp - 9) * 3, null, true); else if (imp > 16) hurtPlayer((imp - 16) * 2, null, true); }
+        if (!hitV.remote && hitV.alive) { hitV.hp -= dmg * (hitV.bus ? 0.4 : 0.8); if (hitV.hp <= 0) destroyVehicle(hitV); }
+        if (v.hp <= 0) destroyVehicle(v);
+      }
+      if (!hitV.driver && !hitV.bus && hitV.type === 'car' && !bus) {   // a parked car gets shoved a little
+        const pu = Math.min(0.5, Math.abs(v.speed) * 0.025) * Math.sign(v.speed || 1);
+        if (!vehBlocked(hitV, hitV.x + fx * pu, hitV.z + fz * pu)) { hitV.x += fx * pu; hitV.z += fz * pu; hitV.yaw += (rnd() - 0.5) * pu * 0.3; hitV.q = Q.euler(hitV.yaw, hitV.pitch || 0, hitV.roll || 0); }
+      }
+      v.speed *= -0.2;
+    } else if (Math.max(gAhead, gHere) > v.y + 1.15 && v.onGround) {
       const imp = Math.abs(v.speed);
       if (car && imp > 6) { v.hp -= (imp - 6) * (bus ? 4 : 6); G.shake = Math.max(G.shake, Math.min(1, imp / 25)); G.sfx && G.sfx.land(); if (occ && imp > 14) hurtPlayer((imp - 14) * 2.5, null, true); if (v.hp <= 0) destroyVehicle(v); }
       else if (!car && occ && imp > 12) { v.hp -= (imp - 12) * 7; G.shake = Math.max(G.shake, 0.5); G.sfx && G.sfx.land(); if (v.hp <= 0) destroyVehicle(v); }
@@ -7011,6 +7027,29 @@ function unstick(b) {
   const w = G.world, hw = b.hw || 0.3, h = b.h || 1.8;
   if (!collides(w, b.x, b.y, b.z, hw, h)) return;
   for (let k = 1; k < 150; k++) if (!collides(w, b.x, b.y + k, b.z, hw, h)) { b.y = Math.floor(b.y + k) + 0.01; b.vy = 0; return; }
+}
+// ground vehicles bump into each other: oriented boxes (car 4 x 1.9 m, bus 11-17 x 2.6 m, bike 1.6 x 0.7 m)
+function vehDims(o) { const b = o.bus || 0; return o.type === 'car' ? [b ? (b === 2 ? 8.6 : 5.7) : 2.1, b ? 1.3 : 0.95] : o.type === 'bike' ? [0.85, 0.35] : null; }
+function obbHit(ax, az, ay, ahl, ahw, bx, bz, by, bhl, bhw) {
+  const dx = bx - ax, dz = bz - az;
+  for (const [ux, uz] of [[-Math.sin(ay), -Math.cos(ay)], [Math.cos(ay), -Math.sin(ay)], [-Math.sin(by), -Math.cos(by)], [Math.cos(by), -Math.sin(by)]]) {
+    const ra = ahl * Math.abs(ux * -Math.sin(ay) + uz * -Math.cos(ay)) + ahw * Math.abs(ux * Math.cos(ay) + uz * -Math.sin(ay));
+    const rb = bhl * Math.abs(ux * -Math.sin(by) + uz * -Math.cos(by)) + bhw * Math.abs(ux * Math.cos(by) + uz * -Math.sin(by));
+    if (Math.abs(dx * ux + dz * uz) > ra + rb) return false;
+  }
+  return true;
+}
+function vehBlocked(v, nx, nz) {
+  const dv = vehDims(v); if (!dv) return null;
+  for (const o of G.vehicles) {
+    if (o === v || !o.alive && !o.wreck) continue;
+    const d = vehDims(o); if (!d) continue;
+    if (Math.abs(o.x - nx) > 20 || Math.abs(o.z - nz) > 20 || Math.abs(o.y - v.y) > 2.5) continue;
+    if (!obbHit(nx, nz, v.yaw, dv[0], dv[1], o.x, o.z, o.yaw, d[0], d[1])) continue;
+    if (obbHit(v.x, v.z, v.yaw, dv[0], dv[1], o.x, o.z, o.yaw, d[0], d[1]) && Math.hypot(nx - o.x, nz - o.z) > Math.hypot(v.x - o.x, v.z - o.z)) continue;   // already touching: let it back away
+    return o;
+  }
+  return null;
 }
 function vehicleAim(v) {
   if (v.type === 'bike' || v.type === 'car') return { pt: [v.x, v.y + 1, v.z] };
@@ -7974,7 +8013,7 @@ G.curW = currentW;
   // play a player's voice: an <audio> element plays it (works on phones too), an analyser shows who is talking
   function attach(pid, call, stream) {
     detach(pid);
-    const el = new Audio(); el.autoplay = true; el.playsInline = true; el.srcObject = stream; el.volume = 1;
+    const el = new Audio(); el.autoplay = true; el.playsInline = true; el.srcObject = stream; el.volume = V.vol;
     el.play().catch(() => { V.blocked = true; });
     let an = null; const c = actx();
     if (c) { try { const src = c.createMediaStreamSource(stream); an = c.createAnalyser(); an.fftSize = 512; src.connect(an); } catch (e) { an = null; } }
@@ -8002,7 +8041,7 @@ G.curW = currentW;
     V.peer = p; V.code = N.code;
     p.on('open', () => { V.vid = vid; V.err = ''; });
     p.on('call', call => {
-      const pid = call.metadata && call.metadata.pid; if (!pid) { try { call.close(); } catch (e) { /* ignore */ } return; }
+      const pid = call.metadata && call.metadata.pid; if (!pid || V.disabled) { try { call.close(); } catch (e) { /* ignore */ } return; }
       call.answer();
       call.on('stream', st => attach(pid, call, st));
       call.on('close', () => { const e = V.ins.get(pid); if (e && e.call === call) detach(pid); });
@@ -8019,22 +8058,36 @@ G.curW = currentW;
   }
   // the players I talk with and listen to: everyone, or the 10 closest in a big room
   function allowed(states) {
-    const p = G.p, list = [];
+    const p = G.p, list = []; if (!p) return new Map();
     for (const s of states) if (s && s.vo && s.id !== N.id) list.push([(s.x - p.x) ** 2 + (s.z - p.z) ** 2, s]);
     if (N.players > BIG) { list.sort((a, b) => a[0] - b[0]); list.length = Math.min(list.length, NEAREST); }
     return new Map(list.map(([, s]) => [s.id, s]));
   }
+  const saveMuted = m => { try { localStorage.setItem('cubefront.micMuted', m ? '1' : '0'); } catch (e) { /* ignore */ } };
+  const syncCls = () => { document.body.classList.toggle('micon', !!V.on); document.body.classList.toggle('micblock', !!V.blockedMic && !V.on); document.body.classList.toggle('voiceoff', !!V.disabled); };
+  // muting really lets go of the microphone (the browser's/tablet's mic light goes off too); unmuting takes it again
+  function stopMic() {
+    if (V.stream) for (const t of V.stream.getTracks()) { try { t.stop(); } catch (e) { /* ignore */ } }
+    V.stream = null; myAn = null; V.on = false; V.lvl = 0;
+    for (const pid of [...V.outs.keys()]) hangOut(pid);
+  }
+  let cancelStart = false;
   V.toggle = async function () {
     const online = N && N.mode !== 'off';
-    if (V.stream) { V.on = !V.on; for (const t of V.stream.getAudioTracks()) t.enabled = V.on; document.body.classList.toggle('micon', V.on); try { localStorage.setItem('cubefront.micMuted', V.on ? '0' : '1'); } catch (e) { /* ignore */ } toast(V.on ? (online ? 'MIC ON · everyone hears you' : 'MIC ON · others hear you once they join') : 'MIC OFF'); return; }
-    if (starting) return; starting = true;
+    if (V.disabled) { toast('VOICE CHAT IS OFF · turn it on in the menu (Voice chat)'); return; }
+    if (starting) { cancelStart = true; toast('MIC OFF'); return; }                 // tapped again while the browser was still asking
+    if (V.stream || V.on) { stopMic(); saveMuted(true); syncCls(); toast('MIC OFF'); return; }
+    starting = true; cancelStart = false;
     try {
       if (!window.isSecureContext) throw Object.assign(new Error('insecure'), { name: 'Insecure' });
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw Object.assign(new Error('no mic'), { name: 'NoApi' });
-      V.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
-      V.on = true; actx(); try { localStorage.setItem('cubefront.micMuted', '0'); } catch (e) { /* ignore */ }
-      const c = actx(); if (c) { try { const src = c.createMediaStreamSource(V.stream); myAn = c.createAnalyser(); myAn.fftSize = 512; src.connect(myAn); } catch (e) { myAn = null; } }
-      toast(V.err ? 'MIC ON · but ' + V.err.toLowerCase() : online ? 'MIC ON · everyone hears you' : 'MIC ON · others hear you once they join');
+      const st = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
+      if (cancelStart || V.disabled) { for (const t of st.getTracks()) t.stop(); saveMuted(true); }
+      else {
+        V.stream = st; V.on = true; V.blockedMic = false; saveMuted(false);
+        const c = actx(); if (c) { try { const src = c.createMediaStreamSource(V.stream); myAn = c.createAnalyser(); myAn.fftSize = 512; src.connect(myAn); } catch (e) { myAn = null; } }
+        toast(V.err && V.err !== 'Microphone blocked' ? 'MIC ON · but ' + V.err.toLowerCase() : online ? 'MIC ON · everyone hears you' : 'MIC ON · others hear you once they join');
+      }
     } catch (e) {
       const n = e && e.name;
       V.err = 'Microphone blocked'; V.blockedMic = true;
@@ -8045,20 +8098,29 @@ G.curW = currentW;
         : 'MICROPHONE NOT AVAILABLE (' + (n || 'error') + ')';
       G.toast = { msg: why, t: 7 };
     }
-    starting = false;
-    if (V.stream) V.blockedMic = false;
-    document.body.classList.toggle('micon', !!V.on); document.body.classList.toggle('micblock', !!V.blockedMic && !V.on);
+    starting = false; cancelStart = false;
+    syncCls();
+  };
+  // voice chat volume from the menu: 0 switches voice chat off completely (no mic, nobody heard, no connections)
+  V.vol = 1; V.disabled = false;
+  V.setVolume = function (v) {
+    V.vol = Math.max(0, Math.min(1, +v || 0));
+    const off = V.vol <= 0;
+    if (off && !V.disabled) { V.disabled = true; stopMic(); stopAll(); }
+    else if (!off) V.disabled = false;
+    for (const e of V.ins.values()) e.el.volume = V.vol * (e.allowed === false ? 0 : 1);
+    syncCls();
   };
   // the mic comes on by itself when you press Play (the browser asks once); muting is remembered for next time
   V.autoOn = function () {
     let muted = false; try { muted = localStorage.getItem('cubefront.micMuted') === '1'; } catch (e) { /* ignore */ }
-    if (muted || V.stream || starting) return;
+    if (muted || V.disabled || V.stream || starting) return;
     V.toggle().then(() => { if (V.on) toast(IS_TOUCH_V ? 'MIC ON · tap MIC to mute' : 'MIC ON · press V to mute'); });
   };
   V.states = () => (N.peerStates ? [...N.peerStates().values()] : []);
   // keep the calls in step with who is in the room
   setInterval(() => {
-    if (!N || N.mode === 'off' || !N.code) { if (V.peer || V.ins.size || V.outs.size) stopAll(); return; }
+    if (V.disabled || !N || N.mode === 'off' || !N.code) { if (V.peer || V.ins.size || V.outs.size) stopAll(); return; }
     if (V.code && V.code !== N.code) stopAll();
     ensurePeer();
     const ok = allowed(V.states());
@@ -8073,7 +8135,7 @@ G.curW = currentW;
         if (call) { V.outs.set(pid, call); call.on('close', () => { if (V.outs.get(pid) === call) V.outs.delete(pid); }); call.on('error', () => { if (V.outs.get(pid) === call) V.outs.delete(pid); }); }
       } catch (e) { /* try again next round */ }
     }
-    for (const [pid, e] of V.ins) e.el.volume = ok.has(pid) ? 1 : 0;   // big room: only the closest are heard
+    for (const [pid, e] of V.ins) { e.allowed = ok.has(pid); e.el.volume = e.allowed ? V.vol : 0; }   // big room: only the closest are heard
   }, 600);
   // who is talking (for the player list), and my own level for the mic button
   setInterval(() => {
@@ -8085,7 +8147,7 @@ G.curW = currentW;
     document.body.classList.toggle('micblock', !!V.blockedMic && !V.on);
     document.body.classList.toggle('mictalk', V.on && V.lvl > 0.015);
     const mh = document.getElementById('micHud');
-    if (mh) { const t = V.on ? 'MIC ON · V to mute' : V.blockedMic ? 'MIC BLOCKED · V to try again' : 'MIC MUTED · V to unmute'; if (mh.textContent !== t) mh.textContent = t; }
+    if (mh) { const t = V.disabled ? 'VOICE CHAT OFF · menu' : V.on ? 'MIC ON · V to mute' : V.blockedMic ? 'MIC BLOCKED · V to try again' : 'MIC MUTED · V to unmute'; if (mh.textContent !== t) mh.textContent = t; }
   }, 120);
 })();
 
@@ -8095,7 +8157,7 @@ G.curW = currentW;
 const CF = window.CF, G = CF.G;
 const $ = id => document.getElementById(id);
 const canvas = $('c');
-const DEF = { seed: '', world: 'wild', rd: 32, enemies: 0, allies: 0, zombies: 8, sens: 1, fov: 85, vol: 0.8, scale: 1, decay: 0 };
+const DEF = { voice: 1, seed: '', world: 'wild', rd: 32, enemies: 0, allies: 0, zombies: 8, sens: 1, fov: 85, vol: 0.8, scale: 1, decay: 0 };
 const IS_TOUCH = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0 && window.matchMedia && matchMedia('(pointer:coarse)').matches);
 const AIM_ICON = '<circle cx="12" cy="12" r="7.5"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/><circle cx="12" cy="12" r="1" fill="#fff"/>';
 const ROCKET_ICON = '<path d="M12 2c2.4 2.2 3.4 5 3.4 8.2V15H8.6v-4.8C8.6 7 9.6 4.2 12 2z"/><path d="M8.6 12l-2.6 3v3l2.6-1.6M15.4 12l2.6 3v3l-2.6-1.6"/><path d="M10.5 18.5L12 22l1.5-3.5"/><circle cx="12" cy="9" r="1.3"/>';
@@ -8135,7 +8197,7 @@ let gfx, sfx;
 try { gfx = new CF.Gfx(canvas); } catch (e) {
   $('menu').classList.remove('hide'); $('err').textContent = String(e.message || e); $('err').classList.remove('hide'); $('playBtn').disabled = true; throw e;
 }
-sfx = new CF.Sfx();
+sfx = new CF.Sfx(); if (CF.Voice) CF.Voice.setVolume(cfg.voice == null ? 1 : cfg.voice);
 
 // ------------------------------------------------------------------ input
 const I = { k: {}, pressed: {}, dx: 0, dy: 0, fire: false, firePressed: false, ads: false, wheel: 0, locked: false, fallback: false, mx: 0.5, my: 0.5, touch: IS_TOUCH };
@@ -8303,7 +8365,8 @@ const SL = [
   ['rd', 'Render distance', 4, 64, 1, v => (v * 16) + ' m'],
   ['sens', 'Mouse sensitivity', 0.2, 3, 0.05, v => v.toFixed(2) + '×'],
   ['fov', 'Field of view', 60, 110, 1, v => v + '°'],
-  ['vol', 'Volume', 0, 1, 0.05, v => Math.round(v * 100) + '%'],
+  ['vol', 'Game sounds', 0, 1, 0.05, v => v > 0 ? Math.round(v * 100) + '%' : 'off'],
+  ['voice', 'Voice chat', 0, 1, 0.05, v => v > 0 ? Math.round(v * 100) + '%' : 'off'],
   ['scale', 'Resolution scale', 0.5, 1, 0.05, v => Math.round(v * 100) + '%'],
 ];
 (function buildMenu() {
@@ -8313,7 +8376,7 @@ const SL = [
     row.innerHTML = `<span>${label}</span><input type="range" min="${mn}" max="${mx}" step="${st}"><b></b>`;
     const inp = row.querySelector('input'), out = row.querySelector('b');
     inp.value = cfg[key]; out.textContent = fmt(+cfg[key]);
-    inp.addEventListener('input', () => { cfg[key] = +inp.value; out.textContent = fmt(cfg[key]); saveCfg(); if (key === 'vol') sfx.setVolume(cfg.vol);
+    inp.addEventListener('input', () => { cfg[key] = +inp.value; out.textContent = fmt(cfg[key]); saveCfg(); if (key === 'vol') sfx.setVolume(cfg.vol); if (key === 'voice' && CF.Voice) CF.Voice.setVolume(cfg.voice);
       if (G.want && (key === 'enemies' || key === 'allies' || key === 'zombies')) G.want[key] = cfg[key];   // online: the host spawns these around you
       if (G.cfg && (key === 'sens' || key === 'fov')) G.cfg[key] = cfg[key]; });
     box.appendChild(row);
