@@ -212,6 +212,10 @@ body.micblock #touch #tMic{background:radial-gradient(circle at 50% 40%,#b0302a9
 body.mictalk #touch #tMic{box-shadow:0 0 0 4px #7dffa066}
 .vmic{display:inline-block;width:7px;height:11px;border-radius:4px;border:2px solid #9fe8b0;margin-right:6px;vertical-align:-1px;opacity:.7}
 .vmic.talk{background:#7dffa0;border-color:#7dffa0;opacity:1;box-shadow:0 0 6px #7dffa0}
+#micHud{position:absolute;left:18px;bottom:74px;font-size:12px;font-weight:700;letter-spacing:.12em;color:#ffd0c8;text-shadow:0 1px 2px #000a;padding:4px 10px 4px 26px;border-radius:12px;background:#0006;pointer-events:none}
+#micHud::before{content:'';position:absolute;left:10px;top:50%;width:6px;height:10px;margin-top:-6px;border:2px solid currentColor;border-radius:4px}
+body.micon #micHud{color:#9dffb4}body.mictalk #micHud::before{background:currentColor;box-shadow:0 0 6px currentColor}
+body.touch #micHud{display:none}
 #netInfo .nmic{font-size:10px;letter-spacing:.1em;opacity:.7;margin-top:4px;text-align:right}
 body.micon #netInfo .nmic{color:#7dffa0;opacity:1}
 </style>
@@ -249,6 +253,7 @@ body.touch #touch #tLight{left:84px!important;top:54px!important;width:38px!impo
 <div id="hud" class="hide">
   <div id="nflash"></div><div id="vig"></div><div id="scope"><div id="scopeB"></div></div>
   <div id="cross"><i></i><i></i><i></i><i></i></div><div id="hit"></div><div id="aim"></div>
+  <div id="micHud">MIC MUTED · V to unmute</div>
   <div id="miniWrap"><canvas id="mini" width="112" height="112"></canvas></div>
   <div id="navHud"><svg id="navArr" viewBox="0 0 40 40"><path d="M20 3 L35 35 L20 27 L5 35 Z" fill="#ffd24a" stroke="#000" stroke-width="2.5" stroke-linejoin="round"/></svg><div id="navTxt"></div></div>
   <div id="top"><div id="comp"></div><div id="score">KILLS<b id="kills">0</b>FLAGS<b id="flags">0</b></div></div>
@@ -287,7 +292,7 @@ body.touch #touch #tLight{left:84px!important;top:54px!important;width:38px!impo
   <div class="box">
     <div>
       <div id="roomBox"><div class="sub">ONLINE ROOM · share this with your friends</div><b id="rbCode"></b><input id="rbLink" readonly><button id="rbCopy">Copy link</button></div><h1>CUBEFRONT</h1>
-      <div class="sub">Endless block warfare · every block is one metre · all of Arnhem, the road north and Apeldoorn · build 85</div>
+      <div class="sub">Endless block warfare · every block is one metre · all of Arnhem, the road north and Apeldoorn · build 86</div>
       <div class="btns"><button id="playBtn">Join the world</button><button id="newBtn" class="alt">New world</button><button id="flipBtn" class="alt">Flip screen ⇄</button> <button id="fitBtn" class="alt">Screen fit: full</button><button id="sndBtn" class="alt">🔊 Test sound</button><button id="refreshBtn" class="alt" style="display:none">↻ Refresh world</button></div><div id="sndMsg" class="sub" style="margin-top:-6px"></div>
       <div class="card"><h3>Your name</h3><input id="pname" placeholder="Your name" maxlength="14" style="margin-bottom:8px;width:100%"><div class="btns"><button id="worldBtn">Join the world</button><button id="hostBtn" class="alt">Host a private room</button></div><div id="joinRow" style="display:flex;gap:6px;margin-top:8px"><input id="joinCode" placeholder="Room code" maxlength="8" style="text-transform:uppercase"><button id="joinBtn" class="alt">Join</button></div><div id="netMsg" class="sub"></div><div class="sub">Press Play: you join the shared Arnhem world, or start it if nobody is in yet. Up to 4 players share the same world and the same zombies.</div></div>
       <div class="card"><h3>World</h3><div id="worldRow"><button class="wbtn alt" data-w="wild">Wilderness</button><button class="wbtn alt" data-w="arnhem">Arnhem</button></div><div class="sub">Both are built from 1 m blocks. Press “New world” after switching.</div></div>
@@ -7955,7 +7960,7 @@ G.curW = currentW;
 (function () {
   const G = CF.G, N = CF.Net;
   const V = CF.Voice = { on: false, want: false, err: '', vid: '', peer: null, code: '', stream: null, outs: new Map(), ins: new Map(), lvl: 0, talking: new Set() };
-  const BIG = 20, NEAREST = 10;
+  const BIG = 20, NEAREST = 10, IS_TOUCH_V = document.body.classList.contains('touch') || 'ontouchstart' in window;
   let ctx = null, myAn = null, starting = false, peerFail = 0;
   const actx = () => {
     try { if (!ctx) { const A = window.AudioContext || window.webkitAudioContext; ctx = new A(); } if (ctx.state === 'suspended') ctx.resume(); } catch (e) { ctx = null; }
@@ -8021,13 +8026,13 @@ G.curW = currentW;
   }
   V.toggle = async function () {
     const online = N && N.mode !== 'off';
-    if (V.stream) { V.on = !V.on; for (const t of V.stream.getAudioTracks()) t.enabled = V.on; document.body.classList.toggle('micon', V.on); toast(V.on ? (online ? 'MIC ON · everyone hears you' : 'MIC ON · others hear you once they join') : 'MIC OFF'); return; }
+    if (V.stream) { V.on = !V.on; for (const t of V.stream.getAudioTracks()) t.enabled = V.on; document.body.classList.toggle('micon', V.on); try { localStorage.setItem('cubefront.micMuted', V.on ? '0' : '1'); } catch (e) { /* ignore */ } toast(V.on ? (online ? 'MIC ON · everyone hears you' : 'MIC ON · others hear you once they join') : 'MIC OFF'); return; }
     if (starting) return; starting = true;
     try {
       if (!window.isSecureContext) throw Object.assign(new Error('insecure'), { name: 'Insecure' });
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw Object.assign(new Error('no mic'), { name: 'NoApi' });
       V.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
-      V.on = true; actx();
+      V.on = true; actx(); try { localStorage.setItem('cubefront.micMuted', '0'); } catch (e) { /* ignore */ }
       const c = actx(); if (c) { try { const src = c.createMediaStreamSource(V.stream); myAn = c.createAnalyser(); myAn.fftSize = 512; src.connect(myAn); } catch (e) { myAn = null; } }
       toast(V.err ? 'MIC ON · but ' + V.err.toLowerCase() : online ? 'MIC ON · everyone hears you' : 'MIC ON · others hear you once they join');
     } catch (e) {
@@ -8043,6 +8048,12 @@ G.curW = currentW;
     starting = false;
     if (V.stream) V.blockedMic = false;
     document.body.classList.toggle('micon', !!V.on); document.body.classList.toggle('micblock', !!V.blockedMic && !V.on);
+  };
+  // the mic comes on by itself when you press Play (the browser asks once); muting is remembered for next time
+  V.autoOn = function () {
+    let muted = false; try { muted = localStorage.getItem('cubefront.micMuted') === '1'; } catch (e) { /* ignore */ }
+    if (muted || V.stream || starting) return;
+    V.toggle().then(() => { if (V.on) toast(IS_TOUCH_V ? 'MIC ON · tap MIC to mute' : 'MIC ON · press V to mute'); });
   };
   V.states = () => (N.peerStates ? [...N.peerStates().values()] : []);
   // keep the calls in step with who is in the room
@@ -8073,6 +8084,8 @@ G.curW = currentW;
     document.body.classList.toggle('micon', !!V.on);
     document.body.classList.toggle('micblock', !!V.blockedMic && !V.on);
     document.body.classList.toggle('mictalk', V.on && V.lvl > 0.015);
+    const mh = document.getElementById('micHud');
+    if (mh) { const t = V.on ? 'MIC ON · V to mute' : V.blockedMic ? 'MIC BLOCKED · V to try again' : 'MIC MUTED · V to unmute'; if (mh.textContent !== t) mh.textContent = t; }
   }, 120);
 })();
 
@@ -8322,6 +8335,7 @@ let curSeedKey = null;
 function goFull() { if (!IS_TOUCH) return; try { const d = document.documentElement; const f = d.requestFullscreen || d.webkitRequestFullscreen; if (f) { const r = f.call(d); if (r && r.catch) r.catch(() => {}); } if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {}); } catch (e) { /* ignore */ } }
 $('playBtn').addEventListener('click', () => {
   goFull(); sfx.init(); sfx.setVolume(cfg.vol);
+  if (CF.Voice) CF.Voice.autoOn();
   requestLock();
   if (started) { setPaused(false); return; }
   if (window.CF_play) window.CF_play(); else startGame(false);
@@ -8982,7 +8996,7 @@ setInterval(() => { const now = performance.now(); for (const d of chatLog.child
     const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
     const mic = m => m === 2 ? '<i class="vmic talk"></i>' : m === 1 ? '<i class="vmic"></i>' : '';
     info.innerHTML = 'ONLINE · <b>' + N.players + '</b> player' + (N.players === 1 ? '' : 's') + rows.map(r => '<div class="nrow' + (r[2] ? ' me' : '') + '"><span>' + mic(r[3]) + esc(r[0]) + '</span><span>' + r[1] + ' kills</span></div>').join('')
-      + (IS_TOUCH ? '' : '<div class="nmic">' + (VC && VC.on ? 'MIC ON' : 'MIC OFF') + ' · press V</div>');
+      ;
   }, 700);
   info.addEventListener('click', () => { try { navigator.clipboard.writeText(CF.Net.link()); info.textContent = 'Link copied'; } catch (e) { /* ignore */ } });
 
@@ -8990,7 +9004,7 @@ setInterval(() => { const now = performance.now(); for (const d of chatLog.child
   const rb = $('roomBox'), ctl = $('ctl');
   $('rbCopy').addEventListener('click', () => { const l = $('rbLink'); l.select(); try { navigator.clipboard.writeText(l.value); $('rbCopy').textContent = 'Copied!'; setTimeout(() => $('rbCopy').textContent = 'Copy link', 1500); } catch (e) { /* ignore */ } });
   const CT = {
-    foot: ['On foot', [['W A S D', 'Move'], ['Shift', 'Sprint'], ['Space', 'Jump (press again: double jump)'], ['LMB', 'Fire'], ['RMB', 'Aim'], ['1-9 / wheel', 'Weapons (8 katana, 9 chainsaw)'], ['G', 'Grenade'], ['F', 'Flashlight (night)'], ['E', 'Enter vehicle / ride along'], ['B', 'Motorbike'], ['H', 'Helicopter'], ['J', 'Jet'], ['Enter', 'Chat'], ['V', 'Microphone on/off'], ['M', 'Map + street search'], ['Esc', 'Pause · refresh world']]],
+    foot: ['On foot', [['W A S D', 'Move'], ['Shift', 'Sprint'], ['Space', 'Jump (press again: double jump)'], ['LMB', 'Fire'], ['RMB', 'Aim'], ['1-9 / wheel', 'Weapons (8 katana, 9 chainsaw)'], ['G', 'Grenade'], ['F', 'Flashlight (night)'], ['E', 'Enter vehicle / ride along'], ['B', 'Motorbike'], ['H', 'Helicopter'], ['J', 'Jet'], ['Enter', 'Chat'], ['V', 'Mute / unmute microphone'], ['M', 'Map + street search'], ['Esc', 'Pause · refresh world']]],
     heli: ['Helicopter', [['W / S', 'Tilt fwd / back'], ['A / D', 'Strafe'], ['Mouse', 'Turn'], ['Space', 'Up'], ['Shift', 'Down'], ['LMB', 'Guns'], ['RMB / Q', 'Rockets'], ['N', 'Drop nuke'], ['E / H', 'Exit'], ['Enter', 'Chat']]],
     jet: ['Jet', [['W / S', 'Throttle'], ['Mouse', 'Steer'], ['A / D', 'Turn'], ['Shift', 'Afterburner'], ['LMB', 'Guns'], ['RMB / Q', 'Rockets'], ['E / J', 'Bail out (parachute)'], ['M', 'Map'], ['Enter', 'Chat']]],
     bike: ['Motorbike', [['W / S', 'Gas / brake'], ['A / D', 'Steer'], ['B', 'Get off']]],
