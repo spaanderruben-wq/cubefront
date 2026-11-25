@@ -1,0 +1,56 @@
+Cubefront
+Copyright (c) 2026 Ruben. All rights reserved.
+
+The game "Cubefront" - its code, shaders, models, sounds, texts and the way it
+puts its world together, in readable or minified form - is not free software.
+
+You may play it at its official addresses:
+  https://spaanderruben-wq.github.io/cubefront
+  https://claude.ai/artifact/3CqGTjTbxjWXW44zQh7SPo
+
+Without written permission from the copyright holder you may not:
+  - copy, host, mirror, republish or otherwise distribute the game or parts of it;
+  - change it, translate it or build other works on it;
+  - reverse engineer, decompile or de-obfuscate it, except where the law
+    explicitly allows this;
+  - use it, or any part of it, commercially.
+
+THE GAME IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
+IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY ARISING FROM THE USE OF THE GAME.
+
+-------------------------------------------------------------------------------
+Third-party data and software. These parts keep their own licences, and nothing
+above limits the rights those licences give you:
+
+- Map data (c) OpenStreetMap contributors, available under the Open Database
+  Licence (ODbL) 1.0: https://www.openstreetmap.org/copyright
+  The street map built into the game is derived from it and stays under the ODbL.
+- Terrain heights: Actueel Hoogtebestand Nederland (AHN), CC0 1.0.
+- Street furniture (benches, bins, bicycle racks, cabinets and more): Basis-
+  registratie Grootschalige Topografie (BGT), Kadaster / PDOK, CC0 1.0. Loaded
+  from the PDOK service while playing.
+- PeerJS 1.5.5 (online play), under the MIT License:
+
+Copyright (c) 2015 Michelle Bu and Eric Zhang, http://peerjs.com
+
+(The MIT License)
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
